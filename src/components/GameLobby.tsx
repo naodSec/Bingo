@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Users, Trophy, Clock, DollarSign, LogOut, Wallet, Volume2, Settings, Wifi, WifiOff, Star, Crown, Zap, Target, Gamepad2, TrendingUp, Gift, Sparkles, Play, Siren as Fire, Activity, Shield } from 'lucide-react';
+import { Plus, Users, Trophy, Clock, DollarSign, LogOut, Wallet, Volume2, Settings, Wifi, WifiOff, Star, Crown, Zap, Target, Gamepad2, TrendingUp, Gift, Sparkles, Play, Siren as Fire, Activity, Shield, BookOpen } from 'lucide-react';
 import { auth } from '../firebase/config';
 import { signOut } from 'firebase/auth';
 import { gameService } from '../services/gameService';
@@ -20,7 +20,6 @@ interface GameLobbyProps {
 // Admin UIDs - same as in App.tsx
 const ADMIN_UIDS = [
   "fp68X8CKAYQDZYGGVt3ycVGztv23",
-  // Add more admin UIDs here
 ];
 
 const GameLobby: React.FC<GameLobbyProps> = ({ onShowGameList }) => {
@@ -109,12 +108,12 @@ const GameLobby: React.FC<GameLobbyProps> = ({ onShowGameList }) => {
   useEffect(() => {
     const handleOnline = () => {
       setConnectionStatus('online');
-      toast.success('Connection restored');
+      toast.success('✅ Connection restored');
     };
 
     const handleOffline = () => {
       setConnectionStatus('offline');
-      toast.error('Connection lost - working offline');
+      toast.error('❌ Connection lost - working offline');
     };
 
     window.addEventListener('online', handleOnline);
@@ -130,13 +129,21 @@ const GameLobby: React.FC<GameLobbyProps> = ({ onShowGameList }) => {
     if (!auth.currentUser) return;
 
     if (connectionStatus === 'offline') {
-      toast.error('Cannot join game while offline. Please check your connection.');
+      toast.error('❌ Cannot join game while offline. Please check your connection.');
+      return;
+    }
+
+    // Check if player already joined this game
+    const alreadyJoined = gameRoom.players.some(p => p.id === auth.currentUser!.uid);
+    if (alreadyJoined) {
+      // If already joined, navigate to game room
+      navigate(`/game/${gameRoom.id}`);
       return;
     }
 
     if (gameRoom.entryFee > 0) {
       if (!wallet || wallet.balance < gameRoom.entryFee) {
-        toast.error('Insufficient balance. Please deposit funds first.');
+        toast.error('❌ Insufficient balance. Please deposit funds first.');
         navigate('/wallet');
         return;
       }
@@ -160,10 +167,10 @@ const GameLobby: React.FC<GameLobbyProps> = ({ onShowGameList }) => {
 
         await gameService.joinGameRoom(gameRoom.id, player);
         navigate(`/game/${gameRoom.id}`);
-        toast.success('Joined game successfully!');
-      } catch (error) {
+        toast.success('✅ Joined game successfully!');
+      } catch (error: any) {
         console.error('Error joining game:', error);
-        toast.error('Failed to join game. Please try again.');
+        toast.error('❌ ' + (error.message || 'Failed to join game. Please try again.'));
       }
     } else {
       try {
@@ -178,10 +185,10 @@ const GameLobby: React.FC<GameLobbyProps> = ({ onShowGameList }) => {
 
         await gameService.joinGameRoom(gameRoom.id, player);
         navigate(`/game/${gameRoom.id}`);
-        toast.success('Joined game successfully!');
-      } catch (error) {
+        toast.success('✅ Joined game successfully!');
+      } catch (error: any) {
         console.error('Error joining game:', error);
-        toast.error('Failed to join game. Please try again.');
+        toast.error('❌ ' + (error.message || 'Failed to join game. Please try again.'));
       }
     }
   };
@@ -189,9 +196,9 @@ const GameLobby: React.FC<GameLobbyProps> = ({ onShowGameList }) => {
   const handleSignOut = async () => {
     try {
       await signOut(auth);
-      toast.success('Signed out successfully');
+      toast.success('✅ Signed out successfully');
     } catch (error) {
-      toast.error('Failed to sign out');
+      toast.error('❌ Failed to sign out');
     }
   };
 
@@ -420,7 +427,7 @@ const GameLobby: React.FC<GameLobbyProps> = ({ onShowGameList }) => {
           )}
 
           {/* Quick Actions */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
             <button
               onClick={() => setShowCreateModal(true)}
               disabled={connectionStatus === 'offline'}
@@ -452,6 +459,14 @@ const GameLobby: React.FC<GameLobbyProps> = ({ onShowGameList }) => {
             >
               <Settings className="w-8 h-8 mx-auto mb-2 group-hover:rotate-45 transition-transform duration-300" />
               <span>Profile</span>
+            </button>
+
+            <button
+              onClick={() => navigate('/tutorial')}
+              className="group bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white p-6 rounded-2xl font-bold transition-all transform hover:scale-105 shadow-lg"
+            >
+              <BookOpen className="w-8 h-8 mx-auto mb-2 group-hover:scale-110 transition-transform duration-300" />
+              <span>Tutorial</span>
             </button>
           </div>
 
@@ -609,9 +624,9 @@ const GameLobby: React.FC<GameLobbyProps> = ({ onShowGameList }) => {
                   {/* Join Button */}
                   <button
                     onClick={() => handleJoinGame(room)}
-                    disabled={room.players.length >= room.maxPlayers || room.status !== 'waiting' || connectionStatus === 'offline'}
+                    disabled={room.players.length >= room.maxPlayers || connectionStatus === 'offline'}
                     className={`w-full py-3 px-4 rounded-xl font-bold transition-all duration-300 flex items-center justify-center space-x-2 ${
-                      room.players.length >= room.maxPlayers || room.status !== 'waiting' || connectionStatus === 'offline'
+                      room.players.length >= room.maxPlayers || connectionStatus === 'offline'
                         ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
                         : room.entryFee > 0
                         ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white transform hover:scale-105 shadow-lg hover:shadow-xl'

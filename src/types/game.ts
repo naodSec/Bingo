@@ -5,7 +5,6 @@ export interface Player {
   telegramId?: string;
   avatar?: string;
   isOnline: boolean;
-  // joinedAt: Date;
 }
 
 export interface BingoSquare {
@@ -25,7 +24,6 @@ export interface BingoCard {
 }
 
 export interface GameRoom {
-
   id: string;
   name: string;
   hostId: string;
@@ -33,12 +31,19 @@ export interface GameRoom {
   maxPlayers: number;
   entryFee: number;
   prizePool: number;
-  status: string;
+  status: 'waiting' | 'starting' | 'playing' | 'completed';
   calledNumbers: number[];
   currentCall: number | null;
   createdAt: Date | any;
+  gameStartedAt?: Date | any;
+  gameEndedAt?: Date | any;
+  lastCallTime?: Date | any;
+  numberCallInterval?: number; // milliseconds between number calls
   telegramBotEnabled?: boolean;
   telegramChannelId?: string;
+  winnerId?: string;
+  winPattern?: string;
+  winAmount?: number;
 }
 
 export interface Payment {

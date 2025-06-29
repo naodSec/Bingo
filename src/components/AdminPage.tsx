@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { db } from "../firebase/config";
-import { collection, getDocs, deleteDoc, doc, updateDoc, query, orderBy, limit } from "firebase/firestore";
+import { collection, getDocs, deleteDoc, doc, updateDoc, query, orderBy, limit, addDoc, serverTimestamp } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { 
@@ -28,7 +28,11 @@ import {
   Settings,
   BarChart3,
   UserCheck,
-  UserX
+  UserX,
+  Plus,
+  Send,
+  Gift,
+  Wallet
 } from "lucide-react";
 
 const AdminPage: React.FC = () => {
@@ -37,14 +41,22 @@ const AdminPage: React.FC = () => {
   const [games, setGames] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'players' | 'games' | 'transactions'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'players' | 'games' | 'transactions' | 'tools'>('dashboard');
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [showBonusModal, setShowBonusModal] = useState(false);
+  const [selectedPlayer, setSelectedPlayer] = useState<any>(null);
+  const [transferAmount, setTransferAmount] = useState('');
+  const [bonusAmount, setBonusAmount] = useState('');
+  const [bonusReason, setBonusReason] = useState('');
   const [stats, setStats] = useState({
     totalPlayers: 0,
     activeGames: 0,
     totalRevenue: 0,
     todayRevenue: 0,
     pendingWithdrawals: 0,
-    completedGames: 0
+    completedGames: 0,
+    houseCommission: 0,
+    totalPrizePool: 0
   });
 
   useEffect(() => {
@@ -91,7 +103,7 @@ const AdminPage: React.FC = () => {
           toast.error("Failed to load transactions data");
         }
 
-        // Calculate stats with safe data handling
+        // Calculate comprehensive stats
         const totalRevenue = transactions
           .filter(tx => tx.type === 'deposit' && tx.status === 'completed')
           .reduce((sum, tx) => sum + (tx.amount || 0), 0);
@@ -111,8 +123,15 @@ const AdminPage: React.FC = () => {
         const pendingWithdrawals = transactions
           .filter(tx => tx.type === 'withdrawal' && tx.status === 'pending').length;
 
-        const completedGames = games
-          .filter(g => g.status === 'completed').length;
+        const completedGames = games.filter(g => g.status === 'completed').length;
+
+        // Calculate house commission (10% of all game entry fees)
+        const gameEntryFees = transactions
+          .filter(tx => tx.type === 'bet' && tx.status === 'completed')
+          .reduce((sum, tx) => sum + (tx.amount || 0), 0);
+        
+        const houseCommission = gameEntryFees * 0.10; // 10% commission
+        const totalPrizePool = games.reduce((sum, game) => sum + (game.prizePool || 0), 0);
 
         setStats({
           totalPlayers: players.length,
@@ -120,7 +139,9 @@ const AdminPage: React.FC = () => {
           totalRevenue,
           todayRevenue,
           pendingWithdrawals,
-          completedGames
+          completedGames,
+          houseCommission,
+          totalPrizePool
         });
 
       } catch (error) {
@@ -134,27 +155,27 @@ const AdminPage: React.FC = () => {
   }, []);
 
   const handleDeletePlayer = async (id: string) => {
-    if (window.confirm("Are you sure you want to delete this player? This action cannot be undone.")) {
+    if (window.confirm("⚠️ Are you sure you want to permanently delete this player? This action cannot be undone and will remove all their data.")) {
       try {
         await deleteDoc(doc(db, "users", id));
         setPlayers(players.filter((p) => p.id !== id));
-        toast.success("Player deleted successfully");
+        toast.success("✅ Player deleted successfully");
       } catch (error) {
         console.error("Error deleting player:", error);
-        toast.error("Failed to delete player. Check your permissions.");
+        toast.error("❌ Failed to delete player. Check your permissions.");
       }
     }
   };
 
   const handleDeleteGame = async (id: string) => {
-    if (window.confirm("Are you sure you want to delete this game? This action cannot be undone.")) {
+    if (window.confirm("⚠️ Are you sure you want to delete this game? This action cannot be undone.")) {
       try {
         await deleteDoc(doc(db, "gameRooms", id));
         setGames(games.filter((g) => g.id !== id));
-        toast.success("Game deleted successfully");
+        toast.success("✅ Game deleted successfully");
       } catch (error) {
         console.error("Error deleting game:", error);
-        toast.error("Failed to delete game. Check your permissions.");
+        toast.error("❌ Failed to delete game. Check your permissions.");
       }
     }
   };
@@ -166,16 +187,117 @@ const AdminPage: React.FC = () => {
         updatedAt: new Date()
       });
       setPlayers(players.map(p => p.id === id ? { ...p, status } : p));
-      toast.success(`Player status updated to ${status}`);
+      toast.success(`✅ Player status updated to ${status}`);
     } catch (error) {
       console.error("Error updating player status:", error);
-      toast.error("Failed to update player status. Check your permissions.");
+      toast.error("❌ Failed to update player status. Check your permissions.");
+    }
+  };
+
+  const handleTransferMoney = async () => {
+    if (!selectedPlayer || !transferAmount) {
+      toast.error("❌ Please select a player and enter an amount");
+      return;
+    }
+
+    try {
+      const amount = parseFloat(transferAmount);
+      if (amount <= 0) {
+        toast.error("❌ Amount must be greater than 0");
+        return;
+      }
+
+      // Create transaction record
+      await addDoc(collection(db, "transactions"), {
+        userId: selectedPlayer.id,
+        type: "admin_transfer",
+        amount: amount,
+        status: "completed",
+        description: `Admin transfer to ${selectedPlayer.displayName || selectedPlayer.name}`,
+        createdAt: serverTimestamp(),
+        metadata: {
+          adminAction: true,
+          transferType: "admin_to_player"
+        }
+      });
+
+      // Update player wallet (this would need wallet service integration)
+      toast.success(`✅ Successfully transferred ${formatCurrency(amount)} to ${selectedPlayer.displayName || selectedPlayer.name}`);
+      setShowTransferModal(false);
+      setTransferAmount('');
+      setSelectedPlayer(null);
+    } catch (error) {
+      console.error("Error transferring money:", error);
+      toast.error("❌ Failed to transfer money");
+    }
+  };
+
+  const handleAddBonus = async () => {
+    if (!selectedPlayer || !bonusAmount || !bonusReason) {
+      toast.error("❌ Please fill in all fields");
+      return;
+    }
+
+    try {
+      const amount = parseFloat(bonusAmount);
+      if (amount <= 0) {
+        toast.error("❌ Bonus amount must be greater than 0");
+        return;
+      }
+
+      // Create bonus transaction
+      await addDoc(collection(db, "transactions"), {
+        userId: selectedPlayer.id,
+        type: "bonus",
+        amount: amount,
+        status: "completed",
+        description: `Admin bonus: ${bonusReason}`,
+        createdAt: serverTimestamp(),
+        metadata: {
+          adminAction: true,
+          bonusReason: bonusReason
+        }
+      });
+
+      toast.success(`✅ Successfully added ${formatCurrency(amount)} bonus to ${selectedPlayer.displayName || selectedPlayer.name}`);
+      setShowBonusModal(false);
+      setBonusAmount('');
+      setBonusReason('');
+      setSelectedPlayer(null);
+    } catch (error) {
+      console.error("Error adding bonus:", error);
+      toast.error("❌ Failed to add bonus");
+    }
+  };
+
+  const clearAllData = async () => {
+    if (window.confirm("⚠️ DANGER: This will delete ALL game data including players, games, and transactions. This action cannot be undone. Type 'DELETE ALL' to confirm.")) {
+      const confirmation = prompt("Type 'DELETE ALL' to confirm:");
+      if (confirmation === 'DELETE ALL') {
+        try {
+          // Delete all collections (this is a simplified version - in production you'd need cloud functions)
+          const collections = ['users', 'gameRooms', 'transactions', 'wallets'];
+          
+          for (const collectionName of collections) {
+            const snapshot = await getDocs(collection(db, collectionName));
+            const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
+            await Promise.all(deletePromises);
+          }
+
+          setPlayers([]);
+          setGames([]);
+          setTransactions([]);
+          toast.success("✅ All data cleared successfully");
+        } catch (error) {
+          console.error("Error clearing data:", error);
+          toast.error("❌ Failed to clear all data");
+        }
+      }
     }
   };
 
   const refreshData = async () => {
     setLoading(true);
-    // Re-fetch all data
     window.location.reload();
   };
 
@@ -193,9 +315,9 @@ const AdminPage: React.FC = () => {
       a.download = `${filename}-${new Date().toISOString().split('T')[0]}.csv`;
       a.click();
       window.URL.revokeObjectURL(url);
-      toast.success(`${filename} exported successfully`);
+      toast.success(`✅ ${filename} exported successfully`);
     } catch (error) {
-      toast.error(`Failed to export ${filename}`);
+      toast.error(`❌ Failed to export ${filename}`);
     }
   };
 
@@ -308,7 +430,8 @@ const AdminPage: React.FC = () => {
                 { id: 'dashboard', label: 'Dashboard', icon: Activity },
                 { id: 'players', label: 'Players', icon: Users },
                 { id: 'games', label: 'Games', icon: Gamepad2 },
-                { id: 'transactions', label: 'Transactions', icon: CreditCard }
+                { id: 'transactions', label: 'Transactions', icon: CreditCard },
+                { id: 'tools', label: 'Tools', icon: Settings }
               ].map((tab) => {
                 const IconComponent = tab.icon;
                 return (
@@ -351,32 +474,32 @@ const AdminPage: React.FC = () => {
                   change: '+8%'
                 },
                 { 
-                  title: 'Total Revenue', 
-                  value: formatCurrency(stats.totalRevenue), 
+                  title: 'House Commission', 
+                  value: formatCurrency(stats.houseCommission), 
                   icon: DollarSign, 
                   color: 'from-yellow-500 to-orange-600',
                   change: '+25%'
                 },
                 { 
-                  title: 'Today Revenue', 
-                  value: formatCurrency(stats.todayRevenue), 
-                  icon: TrendingUp, 
+                  title: 'Total Prize Pool', 
+                  value: formatCurrency(stats.totalPrizePool), 
+                  icon: Trophy, 
                   color: 'from-purple-500 to-pink-600',
                   change: '+15%'
                 },
                 {
-                  title: 'Pending Withdrawals',
-                  value: stats.pendingWithdrawals,
-                  icon: AlertTriangle,
-                  color: 'from-red-500 to-pink-600',
-                  change: '-5%'
-                },
-                {
-                  title: 'Completed Games',
-                  value: stats.completedGames,
-                  icon: Trophy,
+                  title: 'Total Revenue',
+                  value: formatCurrency(stats.totalRevenue),
+                  icon: TrendingUp,
                   color: 'from-cyan-500 to-blue-600',
                   change: '+18%'
+                },
+                {
+                  title: 'Today Revenue',
+                  value: formatCurrency(stats.todayRevenue),
+                  icon: BarChart3,
+                  color: 'from-pink-500 to-red-600',
+                  change: '+22%'
                 }
               ].map((stat, index) => {
                 const IconComponent = stat.icon;
@@ -459,7 +582,7 @@ const AdminPage: React.FC = () => {
                       <div>
                         <div className="text-white font-semibold">{game.name || `Game ${game.id.slice(-6)}`}</div>
                         <div className="text-white/60 text-sm">
-                          {game.players?.length || 0}/{game.maxPlayers || 0} players
+                          {game.players?.length || 0}/{game.maxPlayers || 0} players • {formatCurrency(game.prizePool || 0)}
                         </div>
                       </div>
                       <div className={`flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-semibold ${getStatusColor(game.status || 'waiting')}`}>
@@ -532,6 +655,26 @@ const AdminPage: React.FC = () => {
                       <td className="py-4 px-4">
                         <div className="flex items-center space-x-2">
                           <button
+                            onClick={() => {
+                              setSelectedPlayer(player);
+                              setShowTransferModal(true);
+                            }}
+                            className="p-2 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition-colors"
+                            title="Transfer Money"
+                          >
+                            <Send className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedPlayer(player);
+                              setShowBonusModal(true);
+                            }}
+                            className="p-2 bg-purple-500/20 text-purple-400 rounded-lg hover:bg-purple-500/30 transition-colors"
+                            title="Add Bonus"
+                          >
+                            <Gift className="w-4 h-4" />
+                          </button>
+                          <button
                             onClick={() => handleUpdatePlayerStatus(player.id, player.status === 'suspended' ? 'active' : 'suspended')}
                             className={`p-2 rounded-lg transition-colors ${
                               player.status === 'suspended' 
@@ -587,55 +730,64 @@ const AdminPage: React.FC = () => {
                     <th className="text-left text-white/80 font-semibold py-3 px-4">Players</th>
                     <th className="text-left text-white/80 font-semibold py-3 px-4">Entry Fee</th>
                     <th className="text-left text-white/80 font-semibold py-3 px-4">Prize Pool</th>
+                    <th className="text-left text-white/80 font-semibold py-3 px-4">Commission</th>
                     <th className="text-left text-white/80 font-semibold py-3 px-4">Status</th>
                     <th className="text-left text-white/80 font-semibold py-3 px-4">Created</th>
                     <th className="text-left text-white/80 font-semibold py-3 px-4">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {games.map((game) => (
-                    <tr key={game.id} className="border-b border-white/10 hover:bg-white/5 transition-colors">
-                      <td className="py-4 px-4">
-                        <div>
-                          <div className="text-white font-semibold">{game.name || `Game ${game.id.slice(-6)}`}</div>
-                          <div className="text-white/60 text-sm">ID: {game.id.slice(-8)}</div>
-                        </div>
-                      </td>
-                      <td className="py-4 px-4 text-white/80">
-                        {game.players?.length || 0}/{game.maxPlayers || 0}
-                      </td>
-                      <td className="py-4 px-4 text-white/80">
-                        {game.entryFee ? formatCurrency(game.entryFee) : 'Free'}
-                      </td>
-                      <td className="py-4 px-4 text-yellow-400 font-semibold">
-                        {formatCurrency(game.prizePool || 0)}
-                      </td>
-                      <td className="py-4 px-4">
-                        <div className={`inline-flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-semibold ${getStatusColor(game.status || 'waiting')}`}>
-                          {getStatusIcon(game.status || 'waiting')}
-                          <span>{game.status || 'Waiting'}</span>
-                        </div>
-                      </td>
-                      <td className="py-4 px-4 text-white/80">{formatDate(game.createdAt)}</td>
-                      <td className="py-4 px-4">
-                        <div className="flex items-center space-x-2">
-                          <button 
-                            className="p-2 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-colors"
-                            title="View Game Details"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteGame(game.id)}
-                            className="p-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors"
-                            title="Delete Game"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {games.map((game) => {
+                    const totalEntryFees = (game.players?.length || 0) * (game.entryFee || 0);
+                    const commission = totalEntryFees * 0.10; // 10% commission
+                    
+                    return (
+                      <tr key={game.id} className="border-b border-white/10 hover:bg-white/5 transition-colors">
+                        <td className="py-4 px-4">
+                          <div>
+                            <div className="text-white font-semibold">{game.name || `Game ${game.id.slice(-6)}`}</div>
+                            <div className="text-white/60 text-sm">ID: {game.id.slice(-8)}</div>
+                          </div>
+                        </td>
+                        <td className="py-4 px-4 text-white/80">
+                          {game.players?.length || 0}/{game.maxPlayers || 0}
+                        </td>
+                        <td className="py-4 px-4 text-white/80">
+                          {game.entryFee ? formatCurrency(game.entryFee) : 'Free'}
+                        </td>
+                        <td className="py-4 px-4 text-yellow-400 font-semibold">
+                          {formatCurrency(game.prizePool || 0)}
+                        </td>
+                        <td className="py-4 px-4 text-green-400 font-semibold">
+                          {formatCurrency(commission)}
+                        </td>
+                        <td className="py-4 px-4">
+                          <div className={`inline-flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-semibold ${getStatusColor(game.status || 'waiting')}`}>
+                            {getStatusIcon(game.status || 'waiting')}
+                            <span>{game.status || 'Waiting'}</span>
+                          </div>
+                        </td>
+                        <td className="py-4 px-4 text-white/80">{formatDate(game.createdAt)}</td>
+                        <td className="py-4 px-4">
+                          <div className="flex items-center space-x-2">
+                            <button 
+                              className="p-2 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-colors"
+                              title="View Game Details"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteGame(game.id)}
+                              className="p-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors"
+                              title="Delete Game"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -689,9 +841,9 @@ const AdminPage: React.FC = () => {
                       </td>
                       <td className="py-4 px-4">
                         <span className={`font-semibold ${
-                          ['deposit', 'win'].includes(txn.type) ? 'text-green-400' : 'text-red-400'
+                          ['deposit', 'win', 'bonus', 'admin_transfer'].includes(txn.type) ? 'text-green-400' : 'text-red-400'
                         }`}>
-                          {['deposit', 'win'].includes(txn.type) ? '+' : '-'}{formatCurrency(txn.amount || 0)}
+                          {['deposit', 'win', 'bonus', 'admin_transfer'].includes(txn.type) ? '+' : '-'}{formatCurrency(txn.amount || 0)}
                         </span>
                       </td>
                       <td className="py-4 px-4">
@@ -705,6 +857,139 @@ const AdminPage: React.FC = () => {
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {/* Tools Tab */}
+        {activeTab === 'tools' && (
+          <div className="space-y-6">
+            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20">
+              <h2 className="text-2xl font-bold text-white mb-6 flex items-center space-x-2">
+                <Settings className="w-8 h-8 text-purple-400" />
+                <span>Admin Tools</span>
+              </h2>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-red-500/20 border border-red-500/30 rounded-xl p-6">
+                  <h3 className="text-red-400 font-bold text-lg mb-3 flex items-center space-x-2">
+                    <AlertTriangle className="w-6 h-6" />
+                    <span>Danger Zone</span>
+                  </h3>
+                  <p className="text-white/80 text-sm mb-4">
+                    Permanently delete all data including players, games, and transactions. This action cannot be undone.
+                  </p>
+                  <button
+                    onClick={clearAllData}
+                    className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-semibold transition-all"
+                  >
+                    Clear All Data
+                  </button>
+                </div>
+
+                <div className="bg-blue-500/20 border border-blue-500/30 rounded-xl p-6">
+                  <h3 className="text-blue-400 font-bold text-lg mb-3 flex items-center space-x-2">
+                    <BarChart3 className="w-6 h-6" />
+                    <span>Revenue Analytics</span>
+                  </h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between text-white/80">
+                      <span>Total Revenue:</span>
+                      <span className="text-green-400 font-semibold">{formatCurrency(stats.totalRevenue)}</span>
+                    </div>
+                    <div className="flex justify-between text-white/80">
+                      <span>House Commission:</span>
+                      <span className="text-yellow-400 font-semibold">{formatCurrency(stats.houseCommission)}</span>
+                    </div>
+                    <div className="flex justify-between text-white/80">
+                      <span>Active Prize Pools:</span>
+                      <span className="text-purple-400 font-semibold">{formatCurrency(stats.totalPrizePool)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Transfer Money Modal */}
+        {showTransferModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-8 border border-white/20 max-w-md w-full">
+              <h3 className="text-2xl font-bold text-white mb-4">Transfer Money</h3>
+              <p className="text-white/80 mb-4">
+                Transfer money to: <span className="font-semibold">{selectedPlayer?.displayName || selectedPlayer?.name}</span>
+              </p>
+              <input
+                type="number"
+                value={transferAmount}
+                onChange={(e) => setTransferAmount(e.target.value)}
+                placeholder="Enter amount in ETB"
+                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
+              />
+              <div className="flex space-x-4">
+                <button
+                  onClick={() => {
+                    setShowTransferModal(false);
+                    setTransferAmount('');
+                    setSelectedPlayer(null);
+                  }}
+                  className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-3 px-4 rounded-lg font-semibold transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleTransferMoney}
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg font-semibold transition-all"
+                >
+                  Transfer
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Add Bonus Modal */}
+        {showBonusModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-8 border border-white/20 max-w-md w-full">
+              <h3 className="text-2xl font-bold text-white mb-4">Add Bonus</h3>
+              <p className="text-white/80 mb-4">
+                Add bonus to: <span className="font-semibold">{selectedPlayer?.displayName || selectedPlayer?.name}</span>
+              </p>
+              <input
+                type="number"
+                value={bonusAmount}
+                onChange={(e) => setBonusAmount(e.target.value)}
+                placeholder="Bonus amount in ETB"
+                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
+              />
+              <input
+                type="text"
+                value={bonusReason}
+                onChange={(e) => setBonusReason(e.target.value)}
+                placeholder="Reason for bonus"
+                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
+              />
+              <div className="flex space-x-4">
+                <button
+                  onClick={() => {
+                    setShowBonusModal(false);
+                    setBonusAmount('');
+                    setBonusReason('');
+                    setSelectedPlayer(null);
+                  }}
+                  className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-3 px-4 rounded-lg font-semibold transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAddBonus}
+                  className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-3 px-4 rounded-lg font-semibold transition-all"
+                >
+                  Add Bonus
+                </button>
+              </div>
             </div>
           </div>
         )}

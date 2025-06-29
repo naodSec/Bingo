@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Users, Trophy, Volume2, Crown, MessageCircle, Settings, VolumeX } from 'lucide-react';
+import { ArrowLeft, Users, Trophy, Volume2, Crown, MessageCircle, Settings, VolumeX, Play, Pause } from 'lucide-react';
 import { auth } from '../firebase/config';
 import { gameService } from '../services/gameService';
 import { telegramService } from '../services/telegramService';
@@ -20,6 +20,8 @@ const GameRoom: React.FC = () => {
   const [showVoiceSettings, setShowVoiceSettings] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [currentLanguage, setCurrentLanguage] = useState(languageService.getCurrentLanguage());
+  const [gameStartCountdown, setGameStartCountdown] = useState(0);
+  const [nextNumberCountdown, setNextNumberCountdown] = useState(0);
 
   useEffect(() => {
     if (!gameId) return;
@@ -28,6 +30,8 @@ const GameRoom: React.FC = () => {
 
     const unsubscribe = gameService.subscribeToGameRoom(gameId, async (room) => {
       const previousCall = gameRoom?.currentCall;
+      const previousStatus = gameRoom?.status;
+      
       setGameRoom(room);
       setLoading(false);
 
@@ -37,23 +41,71 @@ const GameRoom: React.FC = () => {
         setBingoCard(newCard);
       }
 
+      // Handle game status changes
+      if (room?.status === 'playing' && previousStatus === 'waiting') {
+        if (voiceEnabled) {
+          try {
+            await voiceService.speakGameEvent('gameStarted', currentLanguage);
+            toast.success('🎯 Game has started! Good luck!');
+          } catch (error) {
+            console.error('Game start announcement failed:', error);
+          }
+        }
+      }
+
       // Announce new number if it changed and voice is enabled
       if (room?.currentCall && room.currentCall !== previousCall && voiceEnabled) {
         const letter = getLetterForNumber(room.currentCall);
         try {
           await voiceService.speakBingoNumber(room.currentCall, letter, currentLanguage);
+          
+          // Show friendly notification
+          toast.success(`📢 ${letter}-${room.currentCall} called!`, {
+            duration: 3000,
+            style: {
+              background: '#1f2937',
+              color: '#fff',
+              fontSize: '16px',
+              fontWeight: 'bold'
+            }
+          });
         } catch (error) {
           console.error('Voice announcement failed:', error);
         }
       }
 
-      // Announce game events
-      if (room?.status === 'playing' && gameRoom?.status === 'starting' && voiceEnabled) {
-        try {
-          await voiceService.speakGameEvent('gameStarted', currentLanguage);
-        } catch (error) {
-          console.error('Game start announcement failed:', error);
-        }
+      // Handle countdown for game start
+      if (room?.status === 'waiting' && room.players.length >= 2) {
+        // Show countdown when minimum players reached
+        setGameStartCountdown(10);
+        const countdownInterval = setInterval(() => {
+          setGameStartCountdown(prev => {
+            if (prev <= 1) {
+              clearInterval(countdownInterval);
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+      }
+
+      // Handle countdown for next number
+      if (room?.status === 'playing' && room.lastCallTime) {
+        const interval = room.numberCallInterval || 8000;
+        const timeSinceLastCall = Date.now() - (room.lastCallTime?.toDate?.()?.getTime() || Date.now());
+        const remainingTime = Math.max(0, interval - timeSinceLastCall);
+        
+        setNextNumberCountdown(Math.ceil(remainingTime / 1000));
+        
+        const countdownInterval = setInterval(() => {
+          setNextNumberCountdown(prev => {
+            if (prev <= 1) {
+              clearInterval(countdownInterval);
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
       }
     });
 
@@ -69,7 +121,7 @@ const GameRoom: React.FC = () => {
 
   const handleMarkSquare = useCallback(
     (column: keyof Omit<BingoCard, 'id' | 'playerId'>, index: number) => {
-      if (!bingoCard) return;
+      if (!bingoCard || gameRoom?.status !== 'playing') return;
 
       setBingoCard(prev => {
         if (!prev) return prev;
@@ -83,20 +135,38 @@ const GameRoom: React.FC = () => {
 
         // Check for win
         const winResult = gameService.checkWin(newCard);
-        if (winResult.hasWon) {
+        if (winResult.hasWon && gameRoom) {
           // Announce win in selected language
-          const winMessage = `${currentLanguage.phrases.bingo} ${currentLanguage.phrases.congratulations}`;
-          toast.success(winMessage);
+          const winMessage = `🎉 ${currentLanguage.phrases.bingo} ${currentLanguage.phrases.congratulations}`;
+          toast.success(winMessage, {
+            duration: 5000,
+            style: {
+              background: '#059669',
+              color: '#fff',
+              fontSize: '18px',
+              fontWeight: 'bold'
+            }
+          });
           
           if (voiceEnabled) {
             voiceService.speakGameEvent('bingo', currentLanguage);
+          }
+
+          // Declare winner
+          if (auth.currentUser && winResult.winPercentage) {
+            gameService.declareWinner(
+              gameRoom.id, 
+              auth.currentUser.uid, 
+              winResult.pattern || 'Unknown Pattern',
+              winResult.winPercentage
+            );
           }
         }
 
         return newCard;
       });
     },
-    [bingoCard, currentLanguage, voiceEnabled]
+    [bingoCard, currentLanguage, voiceEnabled, gameRoom]
   );
 
   const handleStartGame = async () => {
@@ -104,13 +174,34 @@ const GameRoom: React.FC = () => {
 
     try {
       await gameService.startGame(gameId);
-      toast.success(currentLanguage.phrases.gameStarting);
+      toast.success('🚀 ' + currentLanguage.phrases.gameStarting, {
+        style: {
+          background: '#3b82f6',
+          color: '#fff',
+          fontSize: '16px',
+          fontWeight: 'bold'
+        }
+      });
       
       if (voiceEnabled) {
         await voiceService.speakGameEvent('gameStarting', currentLanguage);
       }
     } catch (error) {
-      toast.error('Failed to start game');
+      toast.error('❌ Failed to start game');
+    }
+  };
+
+  const handleLeaveGame = async () => {
+    if (!gameId || !auth.currentUser) return;
+
+    if (window.confirm('Are you sure you want to leave this game?')) {
+      try {
+        await gameService.leaveGameRoom(gameId, auth.currentUser.uid);
+        toast.success('✅ Left game successfully');
+        navigate('/');
+      } catch (error: any) {
+        toast.error('❌ ' + (error.message || 'Failed to leave game'));
+      }
     }
   };
 
@@ -120,9 +211,9 @@ const GameRoom: React.FC = () => {
     voiceService.updateSettings({ enabled: newVoiceEnabled });
     
     if (newVoiceEnabled) {
-      toast.success('Voice announcements enabled');
+      toast.success('🔊 Voice announcements enabled');
     } else {
-      toast.success('Voice announcements disabled');
+      toast.success('🔇 Voice announcements disabled');
       voiceService.stop(); // Stop any ongoing speech
     }
   };
@@ -153,32 +244,45 @@ const GameRoom: React.FC = () => {
   };
 
   const isHost = gameRoom?.hostId === auth.currentUser?.uid;
+  const canStartGame = isHost && gameRoom?.status === 'waiting' && (gameRoom?.players.length || 0) >= 2;
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-white text-xl">Loading game...</div>
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-blue-400 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="text-white text-xl font-semibold">Loading game...</div>
+          <div className="text-white/60 text-sm mt-2">Preparing your bingo experience</div>
+        </div>
       </div>
     );
   }
 
   if (!loading && !gameRoom) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-white text-xl">Game not found</div>
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-white text-xl mb-4">❌ Game not found</div>
+          <button
+            onClick={() => navigate('/')}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-semibold transition-all"
+          >
+            ← Back to Lobby
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen p-4">
+    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 p-4">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center space-x-4">
             <button
               onClick={() => navigate('/')}
-              className="text-white/80 hover:text-white transition-colors"
+              className="text-white/80 hover:text-white transition-colors bg-white/10 p-3 rounded-xl hover:bg-white/20"
             >
               <ArrowLeft className="w-6 h-6" />
             </button>
@@ -188,13 +292,30 @@ const GameRoom: React.FC = () => {
                 {isHost && <Crown className="w-6 h-6 text-yellow-400" />}
                 {gameRoom?.telegramBotEnabled && <MessageCircle className="w-6 h-6 text-blue-400" />}
               </h1>
-              <p className="text-white/80">
-                {gameRoom?.status === 'waiting'
-                  ? currentLanguage.phrases.waitingForPlayers
-                  : gameRoom?.status === 'starting'
-                  ? currentLanguage.phrases.gameStarting
-                  : currentLanguage.phrases.gameStarted}
-              </p>
+              <div className="flex items-center space-x-4 text-white/80">
+                <span>
+                  {gameRoom?.status === 'waiting'
+                    ? currentLanguage.phrases.waitingForPlayers || 'Waiting for players'
+                    : gameRoom?.status === 'starting'
+                    ? currentLanguage.phrases.gameStarting || 'Game starting'
+                    : gameRoom?.status === 'playing'
+                    ? 'Game in progress'
+                    : 'Game completed'}
+                </span>
+                
+                {/* Game Status Indicators */}
+                {gameRoom?.status === 'waiting' && gameStartCountdown > 0 && (
+                  <span className="bg-yellow-500/20 text-yellow-400 px-3 py-1 rounded-full text-sm font-semibold">
+                    Starting in {gameStartCountdown}s
+                  </span>
+                )}
+                
+                {gameRoom?.status === 'playing' && nextNumberCountdown > 0 && (
+                  <span className="bg-blue-500/20 text-blue-400 px-3 py-1 rounded-full text-sm font-semibold">
+                    Next number in {nextNumberCountdown}s
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
@@ -235,6 +356,16 @@ const GameRoom: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            {/* Leave Game Button */}
+            {gameRoom?.status === 'waiting' && (
+              <button
+                onClick={handleLeaveGame}
+                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-semibold transition-all"
+              >
+                Leave Game
+              </button>
+            )}
           </div>
         </div>
 
@@ -267,7 +398,7 @@ const GameRoom: React.FC = () => {
                   <div
                     className={`inline-block ${getNumberColor(
                       gameRoom.currentCall
-                    )} text-white rounded-full w-20 h-20 flex items-center justify-center text-2xl font-bold mb-2`}
+                    )} text-white rounded-full w-20 h-20 flex items-center justify-center text-2xl font-bold mb-2 animate-pulse`}
                   >
                     {gameRoom.currentCall}
                   </div>
@@ -281,25 +412,27 @@ const GameRoom: React.FC = () => {
               ) : (
                 <div className="text-center text-white/60">
                   {gameRoom?.status === 'waiting'
-                    ? currentLanguage.phrases.waitingForPlayers
+                    ? currentLanguage.phrases.waitingForPlayers || 'Waiting for players'
+                    : gameRoom?.status === 'playing'
+                    ? 'Next number coming soon...'
                     : 'No number called yet'}
                 </div>
               )}
             </div>
 
             {/* Game Controls */}
-            {isHost && gameRoom && gameRoom.status === 'waiting' && (
+            {canStartGame && (
               <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20">
                 <h3 className="text-white text-lg font-semibold mb-4">Host Controls</h3>
                 <button
                   onClick={handleStartGame}
-                  disabled={gameRoom.players.length < 2}
+                  disabled={!canStartGame}
                   className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:bg-gray-600 text-white py-3 px-4 rounded-lg font-semibold transition-all flex items-center justify-center space-x-2"
                 >
-                  <Volume2 className="w-5 h-5" />
+                  <Play className="w-5 h-5" />
                   <span>Start Game</span>
                 </button>
-                {gameRoom.players.length < 2 && (
+                {(gameRoom?.players.length || 0) < 2 && (
                   <p className="text-white/60 text-sm mt-2 text-center">
                     Need at least 2 players to start
                   </p>
@@ -329,9 +462,12 @@ const GameRoom: React.FC = () => {
                           {player.id === gameRoom.hostId && (
                             <Crown className="w-4 h-4 text-yellow-400" />
                           )}
+                          {player.id === auth.currentUser?.uid && (
+                            <span className="text-blue-400 text-xs">(You)</span>
+                          )}
                         </div>
                         <div className="text-white/60 text-xs">
-                          {player.isOnline ? 'Online' : 'Offline'}
+                          {player.isOnline ? '🟢 Online' : '🔴 Offline'}
                         </div>
                       </div>
                     </div>
@@ -363,7 +499,7 @@ const GameRoom: React.FC = () => {
                   </div>
                 ))}
               </div>
-              {gameRoom?.calledNumbers.length === 0 && (
+              {(gameRoom?.calledNumbers.length ?? 0) === 0 && (
                 <div className="text-white/60 text-center">No numbers called yet</div>
               )}
             </div>
