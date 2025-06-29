@@ -12,6 +12,7 @@ import GameList from './components/GameList';
 import { GameProvider } from './contexts/GameContext';
 import WelcomePage from './components/WelcomePage';
 import ProfileSetup from './components/ProfileSetup';
+import InteractiveTutorial from './components/InteractiveTutorial';
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "./firebase/config";
 import AdminPage from './components/AdminPage';
@@ -26,15 +27,22 @@ function App() {
   const [showGameList, setShowGameList] = useState(false);
   const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
   const [showWelcome, setShowWelcome] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
   const [profileComplete, setProfileComplete] = useState<boolean | null>(null);
   
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user);
 
-      // Check if user needs to see welcome page
-      if (user && !localStorage.getItem('welcomeCompleted')) {
-        setShowWelcome(true);
+      if (user) {
+        // Check if user needs to see welcome page
+        if (!localStorage.getItem('welcomeCompleted')) {
+          setShowWelcome(true);
+        }
+        // Check if user needs to see tutorial
+        else if (!localStorage.getItem('tutorialCompleted') && !localStorage.getItem('tutorialSkipped')) {
+          setShowTutorial(true);
+        }
       }
 
       setLoading(false);
@@ -56,8 +64,26 @@ function App() {
     setSelectedGameId(gameId);
     setShowGameList(false);
   };
+  
   const handleBackToMenu = () => {
-    setShowGameList(false); }
+    setShowGameList(false);
+  }
+
+  const handleWelcomeComplete = () => {
+    setShowWelcome(false);
+    // Show tutorial after welcome if not completed
+    if (!localStorage.getItem('tutorialCompleted') && !localStorage.getItem('tutorialSkipped')) {
+      setShowTutorial(true);
+    }
+  };
+
+  const handleTutorialComplete = () => {
+    setShowTutorial(false);
+  };
+
+  const handleTutorialSkip = () => {
+    setShowTutorial(false);
+  };
 
   if (loading) {
     return (
@@ -79,7 +105,19 @@ function App() {
   if (showWelcome) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
-        <WelcomePage onComplete={() => setShowWelcome(false)} />
+        <WelcomePage onComplete={handleWelcomeComplete} />
+        <Toaster position="top-right" />
+      </div>
+    );
+  }
+
+  if (showTutorial) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
+        <InteractiveTutorial 
+          onComplete={handleTutorialComplete}
+          onSkip={handleTutorialSkip}
+        />
         <Toaster position="top-right" />
       </div>
     );
@@ -141,6 +179,19 @@ function App() {
             <Route
               path="/profile"
               element={user ? <ProfileSetup user={user} onComplete={() => {}} /> : <Navigate to="/auth" />}
+            />
+            <Route
+              path="/tutorial"
+              element={
+                user ? (
+                  <InteractiveTutorial 
+                    onComplete={() => window.history.back()}
+                    onSkip={() => window.history.back()}
+                  />
+                ) : (
+                  <Navigate to="/auth" />
+                )
+              }
             />
           </Routes>
           <Toaster position="top-right" />

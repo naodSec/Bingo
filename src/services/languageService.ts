@@ -1,4 +1,13 @@
-import { LanguageConfig } from './voiceService';
+export interface LanguageConfig {
+  code: string;
+  name: string;
+  nativeName: string;
+  numbers: { [key: number]: string };
+  letters: { [key: string]: string };
+  phrases: { [key: string]: string };
+  getNumberText: (num: number) => string;
+  getLetterText: (letter: string) => string;
+}
 
 export const ETHIOPIAN_LANGUAGES: LanguageConfig[] = [
   {
@@ -6,38 +15,76 @@ export const ETHIOPIAN_LANGUAGES: LanguageConfig[] = [
     name: 'Amharic',
     nativeName: 'አማርኛ',
     numbers: {
-      1: 'አንድ', 2: 'ሁለት', 3: 'ሶስት', 4: 'አራት', 5: 'አምስት',
+      1: 'አንድ', 2: 'ሁለት', 3: 'ሦስት', 4: 'አራት', 5: 'አምስት',
       6: 'ስድስት', 7: 'ሰባት', 8: 'ስምንት', 9: 'ዘጠኝ', 10: 'አስር',
-      11: 'አስራ አንድ', 12: 'አስራ ሁለት', 13: 'አስራ ሶስት', 14: 'አስራ አራት', 15: 'አስራ አምስት',
+      11: 'አስራ አንድ', 12: 'አስራ ሁለት', 13: 'አስራ ሦስት', 14: 'አስራ አራት', 15: 'አስራ አምስት',
       16: 'አስራ ስድስት', 17: 'አስራ ሰባት', 18: 'አስራ ስምንት', 19: 'አስራ ዘጠኝ', 20: 'ሃያ',
-      21: 'ሃያ አንድ', 22: 'ሃያ ሁለት', 23: 'ሃያ ሶስት', 24: 'ሃያ አራት', 25: 'ሃያ አምስት',
+      21: 'ሃያ አንድ', 22: 'ሃያ ሁለት', 23: 'ሃያ ሦስት', 24: 'ሃያ አራት', 25: 'ሃያ አምስት',
       26: 'ሃያ ስድስት', 27: 'ሃያ ሰባት', 28: 'ሃያ ስምንት', 29: 'ሃያ ዘጠኝ', 30: 'ሰላሳ',
-      31: 'ሰላሳ አንድ', 32: 'ሰላሳ ሁለት', 33: 'ሰላሳ ሶስት', 34: 'ሰላሳ አራት', 35: 'ሰላሳ አምስት',
+      31: 'ሰላሳ አንድ', 32: 'ሰላሳ ሁለት', 33: 'ሰላሳ ሦስት', 34: 'ሰላሳ አራት', 35: 'ሰላሳ አምስት',
       36: 'ሰላሳ ስድስት', 37: 'ሰላሳ ሰባት', 38: 'ሰላሳ ስምንት', 39: 'ሰላሳ ዘጠኝ', 40: 'አርባ',
-      41: 'አርባ አንድ', 42: 'አርባ ሁለት', 43: 'አርባ ሶስት', 44: 'አርባ አራት', 45: 'አርባ አምስት',
+      41: 'አርባ አንድ', 42: 'አርባ ሁለት', 43: 'አርባ ሦስት', 44: 'አርባ አራት', 45: 'አርባ አምስት',
       46: 'አርባ ስድስት', 47: 'አርባ ሰባት', 48: 'አርባ ስምንት', 49: 'አርባ ዘጠኝ', 50: 'ሃምሳ',
-      51: 'ሃምሳ አንድ', 52: 'ሃምሳ ሁለት', 53: 'ሃምሳ ሶስት', 54: 'ሃምሳ አራት', 55: 'ሃምሳ አምስት',
+      51: 'ሃምሳ አንድ', 52: 'ሃምሳ ሁለት', 53: 'ሃምሳ ሦስት', 54: 'ሃምሳ አራት', 55: 'ሃምሳ አምስት',
       56: 'ሃምሳ ስድስት', 57: 'ሃምሳ ሰባት', 58: 'ሃምሳ ስምንት', 59: 'ሃምሳ ዘጠኝ', 60: 'ስድሳ',
-      61: 'ስድሳ አንድ', 62: 'ስድሳ ሁለት', 63: 'ስድሳ ሶስት', 64: 'ስድሳ አራት', 65: 'ስድሳ አምስት',
+      61: 'ስድሳ አንድ', 62: 'ስድሳ ሁለት', 63: 'ስድሳ ሦስት', 64: 'ስድሳ አራት', 65: 'ስድሳ አምስት',
       66: 'ስድሳ ስድስት', 67: 'ስድሳ ሰባት', 68: 'ስድሳ ስምንት', 69: 'ስድሳ ዘጠኝ', 70: 'ሰባ',
-      71: 'ሰባ አንድ', 72: 'ሰባ ሁለት', 73: 'ሰባ ሶስት', 74: 'ሰባ አራት', 75: 'ሰባ አምስት'
+      71: 'ሰባ አንድ', 72: 'ሰባ ሁለት', 73: 'ሰባ ሦስት', 74: 'ሰባ አራት', 75: 'ሰባ አምስት'
     },
     letters: {
       B: 'ቢ', I: 'አይ', N: 'ኤን', G: 'ጂ', O: 'ኦ'
     },
     phrases: {
-      gameStarting: 'ጨዋታው እየጀመረ ነው',
-      numberCalled: 'ቁጥር ተጠርቷል',
       bingo: 'ቢንጎ!',
-      winner: 'አሸናፊ!',
-      gameOver: 'ጨዋታው ተጠናቋል',
-      nextNumber: 'ቀጣዩ ቁጥር',
-      goodLuck: 'መልካም እድል',
-      congratulations: 'እንኳን ደስ አለዎት',
+      congratulations: 'እንኳን ደስ አለዎት!',
+      goodLuck: 'እድል ይስጥዎት!',
+      gameStarted: 'ጨዋታው ተጀምሯል!',
+      gameStarting: 'ጨዋታው ሊጀመር ነው!',
       waitingForPlayers: 'ተጫዋቾችን እየጠበቅን ነው',
-      gameStarted: 'ጨዋታው ጀምሯል',
-      markYourCards: 'ካርዶቻችሁን ምልክት አድርጉ'
-    }
+      numberCalled: 'ቁጥር ተጠርቷል',
+      youWon: 'አሸንፈዋል!',
+      gameOver: 'ጨዋታው ተጠናቋል'
+    },
+    getNumberText: function(num: number) { return this.numbers[num] || num.toString(); },
+    getLetterText: function(letter: string) { return this.letters[letter] || letter; }
+  },
+  {
+    code: 'ti-ET',
+    name: 'Tigrinya',
+    nativeName: 'ትግርኛ',
+    numbers: {
+      1: 'ሓደ', 2: 'ክልተ', 3: 'ሰለስተ', 4: 'አርባዕተ', 5: 'ሓሙሽተ',
+      6: 'ሽድሽተ', 7: 'ሸውዓተ', 8: 'ሸሞንተ', 9: 'ትሽዓተ', 10: 'ዓሰርተ',
+      11: 'ዓሰርተ ሓደ', 12: 'ዓሰርተ ክልተ', 13: 'ዓሰርተ ሰለስተ', 14: 'ዓሰርተ አርባዕተ', 15: 'ዓሰርተ ሓሙሽተ',
+      16: 'ዓሰርተ ሽድሽተ', 17: 'ዓሰርተ ሸውዓተ', 18: 'ዓሰርተ ሸሞንተ', 19: 'ዓሰርተ ትሽዓተ', 20: 'ዕስራ',
+      21: 'ዕስራ ሓደ', 22: 'ዕስራ ክልተ', 23: 'ዕስራ ሰለስተ', 24: 'ዕስራ አርባዕተ', 25: 'ዕስራ ሓሙሽተ',
+      26: 'ዕስራ ሽድሽተ', 27: 'ዕስራ ሸውዓተ', 28: 'ዕስራ ሸሞንተ', 29: 'ዕስራ ትሽዓተ', 30: 'ሰላሳ',
+      31: 'ሰላሳ ሓደ', 32: 'ሰላሳ ክልተ', 33: 'ሰላሳ ሰለስተ', 34: 'ሰላሳ አርባዕተ', 35: 'ሰላሳ ሓሙሽተ',
+      36: 'ሰላሳ ሽድሽተ', 37: 'ሰላሳ ሸውዓተ', 38: 'ሰላሳ ሸሞንተ', 39: 'ሰላሳ ትሽዓተ', 40: 'አርባ',
+      41: 'አርባ ሓደ', 42: 'አርባ ክልተ', 43: 'አርባ ሰለስተ', 44: 'አርባ አርባዕተ', 45: 'አርባ ሓሙሽተ',
+      46: 'አርባ ሽድሽተ', 47: 'አርባ ሸውዓተ', 48: 'አርባ ሸሞንተ', 49: 'አርባ ትሽዓተ', 50: 'ሓምሳ',
+      51: 'ሓምሳ ሓደ', 52: 'ሓምሳ ክልተ', 53: 'ሓምሳ ሰለስተ', 54: 'ሓምሳ አርባዕተ', 55: 'ሓምሳ ሓሙሽተ',
+      56: 'ሓምሳ ሽድሽተ', 57: 'ሓምሳ ሸውዓተ', 58: 'ሓምሳ ሸሞንተ', 59: 'ሓምሳ ትሽዓተ', 60: 'ሱሳ',
+      61: 'ሱሳ ሓደ', 62: 'ሱሳ ክልተ', 63: 'ሱሳ ሰለስተ', 64: 'ሱሳ አርባዕተ', 65: 'ሱሳ ሓሙሽተ',
+      66: 'ሱሳ ሽድሽተ', 67: 'ሱሳ ሸውዓተ', 68: 'ሱሳ ሸሞንተ', 69: 'ሱሳ ትሽዓተ', 70: 'ሰብዓ',
+      71: 'ሰብዓ ሓደ', 72: 'ሰብዓ ክልተ', 73: 'ሰብዓ ሰለስተ', 74: 'ሰብዓ አርባዕተ', 75: 'ሰብዓ ሓሙሽተ'
+    },
+    letters: {
+      B: 'ቢ', I: 'አይ', N: 'ኤን', G: 'ጂ', O: 'ኦ'
+    },
+    phrases: {
+      bingo: 'ቢንጎ!',
+      congratulations: 'እንኳን ሓጎሰ!',
+      goodLuck: 'ሓጎስ ይሃብካ!',
+      gameStarted: 'ጸወታ ተጀሚሩ!',
+      gameStarting: 'ጸወታ ክጅምር ኢዩ!',
+      waitingForPlayers: 'ተጻወትቲ ንጽበ ኣለና',
+      numberCalled: 'ቁጽሪ ተጸዊዑ',
+      youWon: 'ዓወትካ!',
+      gameOver: 'ጸወታ ተወዲኡ'
+    },
+    getNumberText: function(num: number) { return this.numbers[num] || num.toString(); },
+    getLetterText: function(letter: string) { return this.letters[letter] || letter; }
   },
   {
     code: 'om-ET',
@@ -57,63 +104,25 @@ export const ETHIOPIAN_LANGUAGES: LanguageConfig[] = [
       51: 'shantama tokko', 52: 'shantama lama', 53: 'shantama sadii', 54: 'shantama afur', 55: 'shantama shan',
       56: 'shantama ja\'a', 57: 'shantama torba', 58: 'shantama saddeet', 59: 'shantama sagal', 60: 'jaatama',
       61: 'jaatama tokko', 62: 'jaatama lama', 63: 'jaatama sadii', 64: 'jaatama afur', 65: 'jaatama shan',
-      66: 'jaatama ja\'a', 67: 'jaatama torba', 68: 'jaatama saddeet', 69: 'jaatama sagal', 70: 'torbatama',
-      71: 'torbatama tokko', 72: 'torbatama lama', 73: 'torbatama sadii', 74: 'torbatama afur', 75: 'torbatama shan'
+      66: 'jaatama ja\'a', 67: 'jaatama torba', 68: 'jaatama saddeet', 69: 'jaatama sagal', 70: 'torbaatama',
+      71: 'torbaatama tokko', 72: 'torbaatama lama', 73: 'torbaatama sadii', 74: 'torbaatama afur', 75: 'torbaatama shan'
     },
     letters: {
       B: 'Bii', I: 'Ayii', N: 'Een', G: 'Jii', O: 'Oo'
     },
     phrases: {
-      gameStarting: 'Taphi jalqabaa jira',
-      numberCalled: 'Lakkoofsi waamamee jira',
       bingo: 'Bingo!',
-      winner: 'Injifataa!',
-      gameOver: 'Taphi xumurameera',
-      nextNumber: 'Lakkoofsa itti aanu',
-      goodLuck: 'Carraa gaarii',
-      congratulations: 'Baga gammadde',
-      waitingForPlayers: 'Taphattoota eegaa jirra',
-      gameStarted: 'Taphi jalqabeera',
-      markYourCards: 'Kaardii keessan mallattoo godhadhaa'
-    }
-  },
-  {
-    code: 'ti-ET',
-    name: 'Tigrinya',
-    nativeName: 'ትግርኛ',
-    numbers: {
-      1: 'ሓደ', 2: 'ክልተ', 3: 'ሰለስተ', 4: 'ኣርባዕተ', 5: 'ሓሙሽተ',
-      6: 'ሽድሽተ', 7: 'ሸውዓተ', 8: 'ሸሞንተ', 9: 'ትሽዓተ', 10: 'ዓሰርተ',
-      11: 'ዓሰርተ ሓደ', 12: 'ዓሰርተ ክልተ', 13: 'ዓሰርተ ሰለስተ', 14: 'ዓሰርተ ኣርባዕተ', 15: 'ዓሰርተ ሓሙሽተ',
-      16: 'ዓሰርተ ሽድሽተ', 17: 'ዓሰርተ ሸውዓተ', 18: 'ዓሰርተ ሸሞንተ', 19: 'ዓሰርተ ትሽዓተ', 20: 'ዕስራ',
-      21: 'ዕስራ ሓደ', 22: 'ዕስራ ክልተ', 23: 'ዕስራ ሰለስተ', 24: 'ዕስራ ኣርባዕተ', 25: 'ዕስራ ሓሙሽተ',
-      26: 'ዕስራ ሽድሽተ', 27: 'ዕስራ ሸውዓተ', 28: 'ዕስራ ሸሞንተ', 29: 'ዕስራ ትሽዓተ', 30: 'ሰላሳ',
-      31: 'ሰላሳ ሓደ', 32: 'ሰላሳ ክልተ', 33: 'ሰላሳ ሰለስተ', 34: 'ሰላሳ ኣርባዕተ', 35: 'ሰላሳ ሓሙሽተ',
-      36: 'ሰላሳ ሽድሽተ', 37: 'ሰላሳ ሸውዓተ', 38: 'ሰላሳ ሸሞንተ', 39: 'ሰላሳ ትሽዓተ', 40: 'ኣርብዓ',
-      41: 'ኣርብዓ ሓደ', 42: 'ኣርብዓ ክልተ', 43: 'ኣርብዓ ሰለስተ', 44: 'ኣርብዓ ኣርባዕተ', 45: 'ኣርብዓ ሓሙሽተ',
-      46: 'ኣርብዓ ሽድሽተ', 47: 'ኣርብዓ ሸውዓተ', 48: 'ኣርብዓ ሸሞንተ', 49: 'ኣርብዓ ትሽዓተ', 50: 'ሓምሳ',
-      51: 'ሓምሳ ሓደ', 52: 'ሓምሳ ክልተ', 53: 'ሓምሳ ሰለስተ', 54: 'ሓምሳ ኣርባዕተ', 55: 'ሓምሳ ሓሙሽተ',
-      56: 'ሓምሳ ሽድሽተ', 57: 'ሓምሳ ሸውዓተ', 58: 'ሓምሳ ሸሞንተ', 59: 'ሓምሳ ትሽዓተ', 60: 'ሱሳ',
-      61: 'ሱሳ ሓደ', 62: 'ሱሳ ክልተ', 63: 'ሱሳ ሰለስተ', 64: 'ሱሳ ኣርባዕተ', 65: 'ሱሳ ሓሙሽተ',
-      66: 'ሱሳ ሽድሽተ', 67: 'ሱሳ ሸውዓተ', 68: 'ሱሳ ሸሞንተ', 69: 'ሱሳ ትሽዓተ', 70: 'ሰብዓ',
-      71: 'ሰብዓ ሓደ', 72: 'ሰብዓ ክልተ', 73: 'ሰብዓ ሰለስተ', 74: 'ሰብዓ ኣርባዕተ', 75: 'ሰብዓ ሓሙሽተ'
+      congratulations: 'Baga gammadde!',
+      goodLuck: 'Carraan siif haa ta\'u!',
+      gameStarted: 'Taphi jalqabame!',
+      gameStarting: 'Taphi jalqabamuu gahe!',
+      waitingForPlayers: 'Taphattootaaf eegaa jirra',
+      numberCalled: 'Lakkoofsi waamamee',
+      youWon: 'Mo\'atte!',
+      gameOver: 'Taphi xumurameera'
     },
-    letters: {
-      B: 'ቢ', I: 'ኢ', N: 'ኤን', G: 'ጂ', O: 'ኦ'
-    },
-    phrases: {
-      gameStarting: 'ጸወታ ይጅምር ኣሎ',
-      numberCalled: 'ቁጽሪ ተጸዊዑ',
-      bingo: 'ቢንጎ!',
-      winner: 'ዓወተኛ!',
-      gameOver: 'ጸወታ ተወዲኡ',
-      nextNumber: 'ዝቕጽል ቁጽሪ',
-      goodLuck: 'ጽቡቕ ዕድል',
-      congratulations: 'እንቋዕ ሓጎሰኩም',
-      waitingForPlayers: 'ተጻወትቲ ንጽበ ኣለና',
-      gameStarted: 'ጸወታ ጀሚሩ',
-      markYourCards: 'ካርድኩም ምልክት ግበሩ'
-    }
+    getNumberText: function(num: number) { return this.numbers[num] || num.toString(); },
+    getLetterText: function(letter: string) { return this.letters[letter] || letter; }
   },
   {
     code: 'en-US',
@@ -140,18 +149,18 @@ export const ETHIOPIAN_LANGUAGES: LanguageConfig[] = [
       B: 'B', I: 'I', N: 'N', G: 'G', O: 'O'
     },
     phrases: {
-      gameStarting: 'Game is starting',
-      numberCalled: 'Number called',
-      bingo: 'Bingo!',
-      winner: 'Winner!',
-      gameOver: 'Game over',
-      nextNumber: 'Next number',
-      goodLuck: 'Good luck',
-      congratulations: 'Congratulations',
+      bingo: 'BINGO!',
+      congratulations: 'Congratulations!',
+      goodLuck: 'Good luck!',
+      gameStarted: 'Game has started!',
+      gameStarting: 'Game is starting!',
       waitingForPlayers: 'Waiting for players',
-      gameStarted: 'Game started',
-      markYourCards: 'Mark your cards'
-    }
+      numberCalled: 'Number called',
+      youWon: 'You won!',
+      gameOver: 'Game over'
+    },
+    getNumberText: function(num: number) { return this.numbers[num] || num.toString(); },
+    getLetterText: function(letter: string) { return this.letters[letter] || letter; }
   }
 ];
 
@@ -159,7 +168,8 @@ class LanguageService {
   private currentLanguage: LanguageConfig;
 
   constructor() {
-    this.currentLanguage = this.getStoredLanguage() || ETHIOPIAN_LANGUAGES[0];
+    const savedLanguage = localStorage.getItem('selectedLanguage');
+    this.currentLanguage = ETHIOPIAN_LANGUAGES.find(lang => lang.code === savedLanguage) || ETHIOPIAN_LANGUAGES[0];
   }
 
   getCurrentLanguage(): LanguageConfig {
@@ -178,32 +188,16 @@ class LanguageService {
     return ETHIOPIAN_LANGUAGES;
   }
 
-  private getStoredLanguage(): LanguageConfig | null {
-    const stored = localStorage.getItem('selectedLanguage');
-    if (stored) {
-      return ETHIOPIAN_LANGUAGES.find(lang => lang.code === stored) || null;
-    }
-    return null;
+  translateNumber(number: number): string {
+    return this.currentLanguage.getNumberText(number);
   }
 
-  translate(key: string, params?: Record<string, any>): string {
-    let text = this.currentLanguage.phrases[key] || key;
-    
-    if (params) {
-      Object.entries(params).forEach(([paramKey, value]) => {
-        text = text.replace(`{${paramKey}}`, value.toString());
-      });
-    }
-    
-    return text;
+  translateLetter(letter: string): string {
+    return this.currentLanguage.getLetterText(letter);
   }
 
-  getNumberText(number: number): string {
-    return this.currentLanguage.numbers[number] || number.toString();
-  }
-
-  getLetterText(letter: string): string {
-    return this.currentLanguage.letters[letter] || letter;
+  getPhrase(key: string): string {
+    return this.currentLanguage.phrases[key] || key;
   }
 }
 
