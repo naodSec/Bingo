@@ -12,7 +12,8 @@ import {
   orderBy, 
   limit,
   serverTimestamp,
-  runTransaction
+  runTransaction,
+  increment
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { Wallet, Transaction, PaymentMethod } from '../types/wallet';
@@ -107,7 +108,7 @@ class WalletService {
     }
   }
 
-  // Update wallet balance
+  // Update wallet balance with transaction
   async updateBalance(userId: string, amount: number, operation: 'add' | 'subtract' = 'add'): Promise<boolean> {
     try {
       const walletRef = doc(db, 'wallets', userId);
@@ -158,6 +159,94 @@ class WalletService {
     }
   }
 
+  // Process game bet (deduct from wallet)
+  async placeBet(userId: string, gameId: string, amount: number, metadata?: any): Promise<boolean> {
+    try {
+      // Check if user has sufficient balance
+      const wallet = await this.getWallet(userId);
+      if (!wallet || wallet.balance < amount) {
+        throw new Error('Insufficient balance');
+      }
+
+      // Create transaction record first
+      const transactionId = await this.createTransaction({
+        userId,
+        type: 'bet',
+        amount,
+        status: 'pending',
+        description: `Game entry fee for ${gameId}`,
+        metadata: { gameId, ...metadata }
+      });
+
+      if (!transactionId) {
+        throw new Error('Failed to create transaction record');
+      }
+
+      // Update wallet balance
+      const success = await this.updateBalance(userId, amount, 'subtract');
+
+      if (success) {
+        // Update transaction status
+        await updateDoc(doc(db, 'transactions', transactionId), {
+          status: 'completed',
+          updatedAt: serverTimestamp()
+        });
+      } else {
+        // Update transaction status to failed
+        await updateDoc(doc(db, 'transactions', transactionId), {
+          status: 'failed',
+          updatedAt: serverTimestamp()
+        });
+      }
+
+      return success;
+    } catch (error) {
+      console.error('Error placing bet:', error);
+      return false;
+    }
+  }
+
+  // Process game win (add to wallet)
+  async processWin(userId: string, gameId: string, amount: number, metadata?: any): Promise<boolean> {
+    try {
+      // Create transaction record
+      const transactionId = await this.createTransaction({
+        userId,
+        type: 'win',
+        amount,
+        status: 'pending',
+        description: `Game winnings from ${gameId}`,
+        metadata: { gameId, ...metadata }
+      });
+
+      if (!transactionId) {
+        throw new Error('Failed to create transaction record');
+      }
+
+      // Update wallet balance
+      const success = await this.updateBalance(userId, amount, 'add');
+
+      if (success) {
+        // Update transaction status
+        await updateDoc(doc(db, 'transactions', transactionId), {
+          status: 'completed',
+          updatedAt: serverTimestamp()
+        });
+      } else {
+        // Update transaction status to failed
+        await updateDoc(doc(db, 'transactions', transactionId), {
+          status: 'failed',
+          updatedAt: serverTimestamp()
+        });
+      }
+
+      return success;
+    } catch (error) {
+      console.error('Error processing win:', error);
+      return false;
+    }
+  }
+
   // Process deposit
   async processDeposit(userId: string, amount: number, paymentMethod: string, metadata?: any): Promise<boolean> {
     try {
@@ -167,7 +256,6 @@ class WalletService {
         type: 'deposit',
         amount,
         status: 'pending',
-        paymentMethod,
         description: `Deposit via ${paymentMethod}`,
         metadata
       });
@@ -215,7 +303,6 @@ class WalletService {
         type: 'withdrawal',
         amount,
         status: 'pending',
-        paymentMethod,
         description: `Withdrawal via ${paymentMethod}`,
         metadata
       });

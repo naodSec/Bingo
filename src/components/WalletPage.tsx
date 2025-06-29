@@ -19,7 +19,8 @@ import {
   Target,
   Gamepad2,
   Crown,
-  Sparkles
+  Sparkles,
+  HelpCircle
 } from 'lucide-react';
 import { auth } from '../firebase/config';
 import { walletService } from '../services/walletService';
@@ -27,6 +28,7 @@ import { Wallet as WalletType, Transaction, PaymentMethod } from '../types/walle
 import DepositModal from './DepositModal';
 import WithdrawalModal from './WithdrawalModal';
 import TransactionHistory from './TransactionHistory';
+import SupportPanel from './SupportPanel';
 import toast from 'react-hot-toast';
 import { useNavigate, useLocation } from 'react-router-dom';
 
@@ -43,6 +45,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ user, onNavigate, onBack }) => 
   const [activeTab, setActiveTab] = useState<'overview' | 'history'>('overview');
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [showWithdrawalModal, setShowWithdrawalModal] = useState(false);
+  const [showSupportPanel, setShowSupportPanel] = useState(false);
   const [loading, setLoading] = useState(true);
   const [balanceAnimation, setBalanceAnimation] = useState(false);
   const navigate = useNavigate();
@@ -95,24 +98,6 @@ const WalletPage: React.FC<WalletPageProps> = ({ user, onNavigate, onBack }) => 
       }, 2000);
     }
   }, [location, onBack]);
-
-  useEffect(() => {
-    const fetchWallet = async () => {
-      if (!user?.uid) return;
-  
-      try {
-        const walletData = await walletService.getWallet(user.uid);
-        setWallet(walletData);
-        setLoading(false);
-      } catch (error) {
-        console.error('Error fetching wallet:', error);
-        toast.error('Failed to load wallet details.');
-        setLoading(false);
-      }
-    };
-  
-    fetchWallet();
-  }, [user?.uid, location]); // Add `location` to re-fetch wallet data after redirection
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-ET', {
@@ -391,7 +376,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ user, onNavigate, onBack }) => 
                     { label: 'Play Bingo', icon: Gamepad2, action: () => navigate('/') },
                     { label: 'View Profile', icon: Settings, action: () => navigate('/profile') },
                     { label: 'Transaction History', icon: History, action: () => setActiveTab('history') },
-                    { label: 'Support', icon: Shield, action: () => {} }
+                    { label: 'Support', icon: HelpCircle, action: () => setShowSupportPanel(true) }
                   ].map((action) => {
                     const IconComponent = action.icon;
                     return (
@@ -442,6 +427,13 @@ const WalletPage: React.FC<WalletPageProps> = ({ user, onNavigate, onBack }) => 
             <WithdrawalModal
               onClose={() => setShowWithdrawalModal(false)}
               wallet={wallet}
+            />
+          )}
+
+          {showSupportPanel && (
+            <SupportPanel
+              isOpen={showSupportPanel}
+              onClose={() => setShowSupportPanel(false)}
             />
           )}
 
