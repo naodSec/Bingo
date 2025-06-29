@@ -45,7 +45,7 @@ const WithdrawalModal: React.FC<WithdrawalModalProps> = ({ onClose, wallet }) =>
         phone: `+251${phoneNumber}`, // Add +251 prefix
       };
 
-      const res = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/api/withdraw`, payload);
+      const res = await axios.post('/api/withdraw', payload);
 
       if (res.data.success) {
         toast.success('Withdrawal request submitted successfully.');

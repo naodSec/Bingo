@@ -86,7 +86,7 @@ const DepositModal: React.FC<DepositModalProps> = ({ onClose, wallet }) => {
         userId
       };
   
-      const res = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/api/wallet/deposit`, depositPayload);
+      const res = await axios.post('/api/wallet/deposit', depositPayload);
   
       if (res.data.checkout_url) {
         window.location.href = res.data.checkout_url;
