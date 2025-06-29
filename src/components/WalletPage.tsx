@@ -49,7 +49,10 @@ const WalletPage: React.FC<WalletPageProps> = ({ user, onNavigate, onBack }) => 
   const location = useLocation();
 
   useEffect(() => {
-    if (!auth.currentUser) return;
+    if (!auth.currentUser?.uid) {
+      setLoading(false);
+      return;
+    }
 
     if (!walletService || typeof walletService.subscribeToWallet !== 'function') {
       console.error('WalletService not properly imported');
@@ -81,7 +84,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ user, onNavigate, onBack }) => 
       if (typeof unsubscribeWallet === 'function') unsubscribeWallet();
       if (typeof unsubscribeTransactions === 'function') unsubscribeTransactions();
     };
-  }, [wallet?.balance]);
+  }, [wallet?.balance, auth.currentUser?.uid]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
