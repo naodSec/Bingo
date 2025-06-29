@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Ensure we're in the script's directory
+cd "$(dirname "$0")"
+
 echo "Starting Bingo Game Application..."
 
 # Check if backend dependencies are installed
