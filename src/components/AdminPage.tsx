@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { db } from "../firebase/config";
-import { collection, getDocs, deleteDoc, doc, updateDoc } from "firebase/firestore";
+import { collection, getDocs, deleteDoc, doc, updateDoc, query, orderBy, limit } from "firebase/firestore";
+import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { 
   Users, 
@@ -20,10 +21,18 @@ import {
   Clock,
   Star,
   Zap,
-  Target
+  Target,
+  ArrowLeft,
+  RefreshCw,
+  Download,
+  Settings,
+  BarChart3,
+  UserCheck,
+  UserX
 } from "lucide-react";
 
 const AdminPage: React.FC = () => {
+  const navigate = useNavigate();
   const [players, setPlayers] = useState<any[]>([]);
   const [games, setGames] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -33,51 +42,90 @@ const AdminPage: React.FC = () => {
     totalPlayers: 0,
     activeGames: 0,
     totalRevenue: 0,
-    todayRevenue: 0
+    todayRevenue: 0,
+    pendingWithdrawals: 0,
+    completedGames: 0
   });
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        // Fetch users
-        const usersSnap = await getDocs(collection(db, "users"));
-        const playersData = usersSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-        setPlayers(playersData);
+        // Fetch users with error handling
+        try {
+          const usersSnap = await getDocs(collection(db, "users"));
+          const playersData = usersSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+          setPlayers(playersData);
+        } catch (error) {
+          console.error("Error fetching users:", error);
+          toast.error("Failed to load users data");
+        }
 
-        // Fetch games
-        const gamesSnap = await getDocs(collection(db, "gameRooms"));
-        const gamesData = gamesSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-        setGames(gamesData);
+        // Fetch games with error handling
+        try {
+          const gamesQuery = query(
+            collection(db, "gameRooms"),
+            orderBy("createdAt", "desc"),
+            limit(100)
+          );
+          const gamesSnap = await getDocs(gamesQuery);
+          const gamesData = gamesSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+          setGames(gamesData);
+        } catch (error) {
+          console.error("Error fetching games:", error);
+          toast.error("Failed to load games data");
+        }
 
-        // Fetch transactions
-        const txSnap = await getDocs(collection(db, "transactions"));
-        const txData = txSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-        setTransactions(txData);
+        // Fetch transactions with error handling
+        try {
+          const txQuery = query(
+            collection(db, "transactions"),
+            orderBy("createdAt", "desc"),
+            limit(200)
+          );
+          const txSnap = await getDocs(txQuery);
+          const txData = txSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+          setTransactions(txData);
+        } catch (error) {
+          console.error("Error fetching transactions:", error);
+          toast.error("Failed to load transactions data");
+        }
 
-        // Calculate stats
-        const totalRevenue = txData
+        // Calculate stats with safe data handling
+        const totalRevenue = transactions
           .filter(tx => tx.type === 'deposit' && tx.status === 'completed')
           .reduce((sum, tx) => sum + (tx.amount || 0), 0);
 
         const today = new Date().toDateString();
-        const todayRevenue = txData
+        const todayRevenue = transactions
           .filter(tx => {
-            const txDate = tx.createdAt?.toDate?.()?.toDateString() || new Date(tx.createdAt).toDateString();
-            return tx.type === 'deposit' && tx.status === 'completed' && txDate === today;
+            try {
+              const txDate = tx.createdAt?.toDate?.()?.toDateString() || new Date(tx.createdAt).toDateString();
+              return tx.type === 'deposit' && tx.status === 'completed' && txDate === today;
+            } catch {
+              return false;
+            }
           })
           .reduce((sum, tx) => sum + (tx.amount || 0), 0);
 
+        const pendingWithdrawals = transactions
+          .filter(tx => tx.type === 'withdrawal' && tx.status === 'pending').length;
+
+        const completedGames = games
+          .filter(g => g.status === 'completed').length;
+
         setStats({
-          totalPlayers: playersData.length,
-          activeGames: gamesData.filter(g => g.status === 'playing' || g.status === 'waiting').length,
+          totalPlayers: players.length,
+          activeGames: games.filter(g => g.status === 'playing' || g.status === 'waiting').length,
           totalRevenue,
-          todayRevenue
+          todayRevenue,
+          pendingWithdrawals,
+          completedGames
         });
 
       } catch (error) {
-        console.error("Error fetching data:", error);
-        toast.error("Failed to load admin data");
+        console.error("Error fetching admin data:", error);
+        toast.error("Failed to load admin data. Please check your permissions.");
       } finally {
         setLoading(false);
       }
@@ -86,36 +134,68 @@ const AdminPage: React.FC = () => {
   }, []);
 
   const handleDeletePlayer = async (id: string) => {
-    if (window.confirm("Are you sure you want to delete this player?")) {
+    if (window.confirm("Are you sure you want to delete this player? This action cannot be undone.")) {
       try {
         await deleteDoc(doc(db, "users", id));
         setPlayers(players.filter((p) => p.id !== id));
         toast.success("Player deleted successfully");
       } catch (error) {
-        toast.error("Failed to delete player");
+        console.error("Error deleting player:", error);
+        toast.error("Failed to delete player. Check your permissions.");
       }
     }
   };
 
   const handleDeleteGame = async (id: string) => {
-    if (window.confirm("Are you sure you want to delete this game?")) {
+    if (window.confirm("Are you sure you want to delete this game? This action cannot be undone.")) {
       try {
         await deleteDoc(doc(db, "gameRooms", id));
         setGames(games.filter((g) => g.id !== id));
         toast.success("Game deleted successfully");
       } catch (error) {
-        toast.error("Failed to delete game");
+        console.error("Error deleting game:", error);
+        toast.error("Failed to delete game. Check your permissions.");
       }
     }
   };
 
   const handleUpdatePlayerStatus = async (id: string, status: string) => {
     try {
-      await updateDoc(doc(db, "users", id), { status });
+      await updateDoc(doc(db, "users", id), { 
+        status,
+        updatedAt: new Date()
+      });
       setPlayers(players.map(p => p.id === id ? { ...p, status } : p));
       toast.success(`Player status updated to ${status}`);
     } catch (error) {
-      toast.error("Failed to update player status");
+      console.error("Error updating player status:", error);
+      toast.error("Failed to update player status. Check your permissions.");
+    }
+  };
+
+  const refreshData = async () => {
+    setLoading(true);
+    // Re-fetch all data
+    window.location.reload();
+  };
+
+  const exportData = (data: any[], filename: string) => {
+    try {
+      const csvContent = [
+        Object.keys(data[0] || {}).join(','),
+        ...data.map(item => Object.values(item).join(','))
+      ].join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${filename}-${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      toast.success(`${filename} exported successfully`);
+    } catch (error) {
+      toast.error(`Failed to export ${filename}`);
     }
   };
 
@@ -123,19 +203,23 @@ const AdminPage: React.FC = () => {
     return new Intl.NumberFormat('en-ET', {
       style: 'currency',
       currency: 'ETB'
-    }).format(amount);
+    }).format(amount || 0);
   };
 
   const formatDate = (date: any) => {
     if (!date) return 'Unknown';
-    const d = date?.toDate ? date.toDate() : new Date(date);
-    return new Intl.DateTimeFormat('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(d);
+    try {
+      const d = date?.toDate ? date.toDate() : new Date(date);
+      return new Intl.DateTimeFormat('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }).format(d);
+    } catch {
+      return 'Invalid Date';
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -170,6 +254,7 @@ const AdminPage: React.FC = () => {
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-blue-400 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <div className="text-white text-xl font-semibold">Loading Admin Dashboard...</div>
+          <div className="text-white/60 text-sm mt-2">Fetching system data...</div>
         </div>
       </div>
     );
@@ -187,42 +272,61 @@ const AdminPage: React.FC = () => {
       <div className="relative z-10 p-6 max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-4xl font-bold text-white mb-2 flex items-center space-x-3">
-              <div className="p-3 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-xl">
-                <Crown className="w-8 h-8 text-white" />
-              </div>
-              <span className="bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent">
-                Admin Dashboard
-              </span>
-            </h1>
-            <p className="text-white/80">Manage your gaming platform</p>
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={() => navigate('/')}
+              className="bg-white/10 hover:bg-white/20 text-white p-3 rounded-xl transition-all duration-300 transform hover:scale-110 backdrop-blur-sm border border-white/20"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <div>
+              <h1 className="text-4xl font-bold text-white mb-2 flex items-center space-x-3">
+                <div className="p-3 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-xl">
+                  <Crown className="w-8 h-8 text-white" />
+                </div>
+                <span className="bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent">
+                  Admin Dashboard
+                </span>
+              </h1>
+              <p className="text-white/80">Manage your gaming platform</p>
+            </div>
           </div>
           
-          {/* Tab Navigation */}
-          <div className="flex items-center space-x-2 bg-white/10 p-1 rounded-xl backdrop-blur-sm border border-white/20">
-            {[
-              { id: 'dashboard', label: 'Dashboard', icon: Activity },
-              { id: 'players', label: 'Players', icon: Users },
-              { id: 'games', label: 'Games', icon: Gamepad2 },
-              { id: 'transactions', label: 'Transactions', icon: CreditCard }
-            ].map((tab) => {
-              const IconComponent = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-semibold transition-all duration-300 ${
-                    activeTab === tab.id
-                      ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg'
-                      : 'text-white/70 hover:text-white hover:bg-white/10'
-                  }`}
-                >
-                  <IconComponent className="w-4 h-4" />
-                  <span>{tab.label}</span>
-                </button>
-              );
-            })}
+          {/* Action Buttons */}
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={refreshData}
+              className="flex items-center space-x-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 px-4 py-2 rounded-xl font-semibold transition-all"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>Refresh</span>
+            </button>
+            
+            {/* Tab Navigation */}
+            <div className="flex items-center space-x-2 bg-white/10 p-1 rounded-xl backdrop-blur-sm border border-white/20">
+              {[
+                { id: 'dashboard', label: 'Dashboard', icon: Activity },
+                { id: 'players', label: 'Players', icon: Users },
+                { id: 'games', label: 'Games', icon: Gamepad2 },
+                { id: 'transactions', label: 'Transactions', icon: CreditCard }
+              ].map((tab) => {
+                const IconComponent = tab.icon;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id as any)}
+                    className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-semibold transition-all duration-300 ${
+                      activeTab === tab.id
+                        ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg'
+                        : 'text-white/70 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    <IconComponent className="w-4 h-4" />
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
 
@@ -259,6 +363,20 @@ const AdminPage: React.FC = () => {
                   icon: TrendingUp, 
                   color: 'from-purple-500 to-pink-600',
                   change: '+15%'
+                },
+                {
+                  title: 'Pending Withdrawals',
+                  value: stats.pendingWithdrawals,
+                  icon: AlertTriangle,
+                  color: 'from-red-500 to-pink-600',
+                  change: '-5%'
+                },
+                {
+                  title: 'Completed Games',
+                  value: stats.completedGames,
+                  icon: Trophy,
+                  color: 'from-cyan-500 to-blue-600',
+                  change: '+18%'
                 }
               ].map((stat, index) => {
                 const IconComponent = stat.icon;
@@ -279,7 +397,7 @@ const AdminPage: React.FC = () => {
                     </div>
                     <h3 className="text-white text-lg font-semibold mb-1">{stat.title}</h3>
                     <p className="text-2xl font-bold bg-gradient-to-r from-white to-blue-200 bg-clip-text text-transparent">
-                      {typeof stat.value === 'number' && stat.title.includes('Revenue') ? stat.value : stat.value}
+                      {typeof stat.value === 'string' ? stat.value : stat.value}
                     </p>
                   </div>
                 );
@@ -289,20 +407,28 @@ const AdminPage: React.FC = () => {
             {/* Recent Activity */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20">
-                <h3 className="text-xl font-bold text-white mb-4 flex items-center space-x-2">
-                  <Activity className="w-6 h-6 text-blue-400" />
-                  <span>Recent Players</span>
-                </h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xl font-bold text-white flex items-center space-x-2">
+                    <Activity className="w-6 h-6 text-blue-400" />
+                    <span>Recent Players</span>
+                  </h3>
+                  <button
+                    onClick={() => exportData(players.slice(0, 10), 'recent-players')}
+                    className="text-blue-400 hover:text-blue-300 transition-colors"
+                  >
+                    <Download className="w-4 h-4" />
+                  </button>
+                </div>
                 <div className="space-y-3">
                   {players.slice(0, 5).map((player) => (
                     <div key={player.id} className="flex items-center justify-between bg-white/5 rounded-lg p-3">
                       <div className="flex items-center space-x-3">
                         <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold">
-                          {(player.displayName || player.email || 'U')[0].toUpperCase()}
+                          {(player.displayName || player.name || player.email || 'U')[0].toUpperCase()}
                         </div>
                         <div>
-                          <div className="text-white font-semibold">{player.displayName || 'Unknown'}</div>
-                          <div className="text-white/60 text-sm">{player.email}</div>
+                          <div className="text-white font-semibold">{player.displayName || player.name || 'Unknown'}</div>
+                          <div className="text-white/60 text-xs">{player.email}</div>
                         </div>
                       </div>
                       <div className={`flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-semibold ${getStatusColor(player.status || 'active')}`}>
@@ -315,10 +441,18 @@ const AdminPage: React.FC = () => {
               </div>
 
               <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20">
-                <h3 className="text-xl font-bold text-white mb-4 flex items-center space-x-2">
-                  <Trophy className="w-6 h-6 text-yellow-400" />
-                  <span>Recent Games</span>
-                </h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xl font-bold text-white flex items-center space-x-2">
+                    <Trophy className="w-6 h-6 text-yellow-400" />
+                    <span>Recent Games</span>
+                  </h3>
+                  <button
+                    onClick={() => exportData(games.slice(0, 10), 'recent-games')}
+                    className="text-yellow-400 hover:text-yellow-300 transition-colors"
+                  >
+                    <Download className="w-4 h-4" />
+                  </button>
+                </div>
                 <div className="space-y-3">
                   {games.slice(0, 5).map((game) => (
                     <div key={game.id} className="flex items-center justify-between bg-white/5 rounded-lg p-3">
@@ -348,7 +482,16 @@ const AdminPage: React.FC = () => {
                 <Users className="w-8 h-8 text-blue-400" />
                 <span>Players Management</span>
               </h2>
-              <div className="text-white/60">{players.length} total players</div>
+              <div className="flex items-center space-x-3">
+                <span className="text-white/60">{players.length} total players</span>
+                <button
+                  onClick={() => exportData(players, 'all-players')}
+                  className="flex items-center space-x-2 bg-green-600/20 hover:bg-green-600/30 text-green-400 px-3 py-2 rounded-lg font-semibold transition-all"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Export</span>
+                </button>
+              </div>
             </div>
             
             <div className="overflow-x-auto">
@@ -369,10 +512,10 @@ const AdminPage: React.FC = () => {
                       <td className="py-4 px-4">
                         <div className="flex items-center space-x-3">
                           <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold">
-                            {(player.displayName || player.email || 'U')[0].toUpperCase()}
+                            {(player.displayName || player.name || player.email || 'U')[0].toUpperCase()}
                           </div>
                           <div>
-                            <div className="text-white font-semibold">{player.displayName || 'Unknown'}</div>
+                            <div className="text-white font-semibold">{player.displayName || player.name || 'Unknown'}</div>
                             <div className="text-white/60 text-sm">ID: {player.id.slice(-8)}</div>
                           </div>
                         </div>
@@ -395,12 +538,14 @@ const AdminPage: React.FC = () => {
                                 ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' 
                                 : 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30'
                             }`}
+                            title={player.status === 'suspended' ? 'Activate Player' : 'Suspend Player'}
                           >
-                            <Shield className="w-4 h-4" />
+                            {player.status === 'suspended' ? <UserCheck className="w-4 h-4" /> : <UserX className="w-4 h-4" />}
                           </button>
                           <button
                             onClick={() => handleDeletePlayer(player.id)}
                             className="p-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors"
+                            title="Delete Player"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -422,7 +567,16 @@ const AdminPage: React.FC = () => {
                 <Gamepad2 className="w-8 h-8 text-green-400" />
                 <span>Games Management</span>
               </h2>
-              <div className="text-white/60">{games.length} total games</div>
+              <div className="flex items-center space-x-3">
+                <span className="text-white/60">{games.length} total games</span>
+                <button
+                  onClick={() => exportData(games, 'all-games')}
+                  className="flex items-center space-x-2 bg-green-600/20 hover:bg-green-600/30 text-green-400 px-3 py-2 rounded-lg font-semibold transition-all"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Export</span>
+                </button>
+              </div>
             </div>
             
             <div className="overflow-x-auto">
@@ -465,12 +619,16 @@ const AdminPage: React.FC = () => {
                       <td className="py-4 px-4 text-white/80">{formatDate(game.createdAt)}</td>
                       <td className="py-4 px-4">
                         <div className="flex items-center space-x-2">
-                          <button className="p-2 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-colors">
+                          <button 
+                            className="p-2 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-colors"
+                            title="View Game Details"
+                          >
                             <Eye className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => handleDeleteGame(game.id)}
                             className="p-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors"
+                            title="Delete Game"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -492,7 +650,16 @@ const AdminPage: React.FC = () => {
                 <CreditCard className="w-8 h-8 text-purple-400" />
                 <span>Transactions</span>
               </h2>
-              <div className="text-white/60">{transactions.length} total transactions</div>
+              <div className="flex items-center space-x-3">
+                <span className="text-white/60">{transactions.length} total transactions</span>
+                <button
+                  onClick={() => exportData(transactions, 'all-transactions')}
+                  className="flex items-center space-x-2 bg-green-600/20 hover:bg-green-600/30 text-green-400 px-3 py-2 rounded-lg font-semibold transition-all"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Export</span>
+                </button>
+              </div>
             </div>
             
             <div className="overflow-x-auto">
@@ -508,7 +675,7 @@ const AdminPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {transactions.slice(0, 20).map((txn) => (
+                  {transactions.slice(0, 50).map((txn) => (
                     <tr key={txn.id} className="border-b border-white/10 hover:bg-white/5 transition-colors">
                       <td className="py-4 px-4">
                         <div>
