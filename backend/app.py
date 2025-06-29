@@ -69,7 +69,7 @@ def update_user():
     return jsonify({
         "success": True,
         "message": "User updated successfully"
-    }, 200)
+    }), 200
 
 
 @app.route('/api/create-payment', methods=['POST'])
@@ -206,13 +206,14 @@ def wallet_deposit():
             return jsonify({'error': f'Chapa error: {error_message}', 'details': resp_json}), 500
 
         # After creating tx_ref in /api/wallet/deposit
-        fs_db.collection('transactions').document(tx_ref).set({
-            "userId": user_id,
-            "amount": float(amount),
-            "status": "pending",
-            "createdAt": firestore.SERVER_TIMESTAMP,
-            "type": "deposit"
-        })
+        if fs_db:
+            fs_db.collection('transactions').document(tx_ref).set({
+                "userId": user_id,
+                "amount": float(amount),
+                "status": "pending",
+                "createdAt": firestore.SERVER_TIMESTAMP,
+                "type": "deposit"
+            })
 
         return jsonify({
             "checkout_url": resp_json['data']['checkout_url'],
@@ -235,7 +236,7 @@ def withdraw():
         return response, 200
 
     try:
-        data = request.json
+        data = request.get_json()
         print(f"Received withdrawal request: {data}")  # Debug log
 
         user_id = data.get('userId')
@@ -266,11 +267,16 @@ def withdraw():
             print(f"Error converting amount to float: {e}")  # Debug log
             return jsonify({"error": "Invalid amount format"}), 400
 
+        # Check if Firebase is available
+        if not fs_db:
+            print("Firebase not available")
+            return jsonify({"error": "Database service unavailable"}), 500
+
         # Check user wallet balance
         wallet_ref = fs_db.collection("wallets").document(user_id)
         wallet_doc = wallet_ref.get()
 
-        if not wallet_doc.exists():
+        if not wallet_doc.exists:
             print("Wallet not found")  # Debug log
             return jsonify({"error": "Wallet not found."}), 404
 
@@ -336,11 +342,15 @@ def process_withdrawal():
         except (ValueError, TypeError):
             return jsonify({'error': 'Invalid amount format'}), 400
 
+        # Check if Firebase is available
+        if not fs_db:
+            return jsonify({'error': 'Database service unavailable'}), 500
+
         # Check user wallet balance
         wallet_ref = fs_db.collection('wallets').document(user_id)
         wallet_doc = wallet_ref.get()
 
-        if not wallet_doc.exists():
+        if not wallet_doc.exists:
             return jsonify({'error': 'Wallet not found'}), 404
 
         wallet_data = wallet_doc.to_dict()
@@ -521,36 +531,37 @@ def payment_callback():
 
             # Find the transaction in Firestore to get userId
             tx_ref = chapa_data["data"]["tx_ref"]
-            txn_doc = fs_db.collection('transactions').document(tx_ref).get()
-            if txn_doc.exists:
-                txn_data = txn_doc.to_dict()
-                user_id = txn_data.get("userId")
-                # Update transaction status
-                fs_db.collection('transactions').document(tx_ref).update({
-                    "status": "completed",
-                    "completedAt": firestore.SERVER_TIMESTAMP
-                })
-            else:
-                print("Transaction not found in Firestore for tx_ref:", tx_ref)
-                return jsonify({"error": "Transaction not found"}), 404
-
-            if user_id:
-                wallet_ref = fs_db.collection('wallets').document(user_id)
-                wallet_doc = wallet_ref.get()
-                if wallet_doc.exists:
-                    wallet_ref.update({
-                        "balance": firestore.Increment(amount),
-                        "updatedAt": firestore.SERVER_TIMESTAMP
+            if fs_db:
+                txn_doc = fs_db.collection('transactions').document(tx_ref).get()
+                if txn_doc.exists:
+                    txn_data = txn_doc.to_dict()
+                    user_id = txn_data.get("userId")
+                    # Update transaction status
+                    fs_db.collection('transactions').document(tx_ref).update({
+                        "status": "completed",
+                        "completedAt": firestore.SERVER_TIMESTAMP
                     })
                 else:
-                    wallet_ref.set({
-                        "balance": amount,
-                        "updatedAt": firestore.SERVER_TIMESTAMP
-                    })
-                print(f"Wallet updated for user {user_id}: +{amount} ETB")
-            else:
-                print("userId not found for tx_ref:", tx_ref)
-                return jsonify({"error": "userId not found"}), 404
+                    print("Transaction not found in Firestore for tx_ref:", tx_ref)
+                    return jsonify({"error": "Transaction not found"}), 404
+
+                if user_id:
+                    wallet_ref = fs_db.collection('wallets').document(user_id)
+                    wallet_doc = wallet_ref.get()
+                    if wallet_doc.exists:
+                        wallet_ref.update({
+                            "balance": firestore.Increment(amount),
+                            "updatedAt": firestore.SERVER_TIMESTAMP
+                        })
+                    else:
+                        wallet_ref.set({
+                            "balance": amount,
+                            "updatedAt": firestore.SERVER_TIMESTAMP
+                        })
+                    print(f"Wallet updated for user {user_id}: +{amount} ETB")
+                else:
+                    print("userId not found for tx_ref:", tx_ref)
+                    return jsonify({"error": "userId not found"}), 404
 
             return jsonify({"message": "Payment callback processed"}), 200
         else:
@@ -615,10 +626,13 @@ def process_game_entry_payment(user_id, game_id, amount, tx_ref):
 def check_withdrawal_status(tx_ref):
     """Check the status of a withdrawal transaction"""
     try:
+        if not fs_db:
+            return jsonify({'error': 'Database service unavailable'}), 500
+
         transaction_ref = fs_db.collection('transactions').document(tx_ref)
         transaction_doc = transaction_ref.get()
         
-        if not transaction_doc.exists():
+        if not transaction_doc.exists:
             return jsonify({'error': 'Transaction not found'}), 404
             
         transaction_data = transaction_doc.to_dict()
@@ -673,6 +687,9 @@ def test_api():
 def get_revenue_analytics():
     """Get revenue analytics (admin only)"""
     try:
+        if not fs_db:
+            return jsonify({'error': 'Database service unavailable'}), 500
+
         period = request.args.get('period', 'daily')  # daily, weekly, monthly
         
         if period == 'daily':
@@ -704,6 +721,9 @@ def get_revenue_analytics():
 def get_withdrawal_history(user_id):
     """Get withdrawal history for a user"""
     try:
+        if not fs_db:
+            return jsonify({'error': 'Database service unavailable'}), 500
+
         # Get user's withdrawal transactions
         transactions_ref = fs_db.collection('transactions')
         query = transactions_ref.where('userId', '==', user_id).where('type', '==', 'withdrawal').order_by('createdAt', direction=firestore.Query.DESCENDING).limit(50)
@@ -737,6 +757,9 @@ def get_withdrawal_history(user_id):
 def get_game_statistics():
     """Get game statistics for analytics"""
     try:
+        if not fs_db:
+            return jsonify({'error': 'Database service unavailable'}), 500
+
         # Get active games count
         active_games = fs_db.collection('gameRooms').where('status', 'in', ['waiting', 'playing']).stream()
         active_count = len(list(active_games))
@@ -767,6 +790,9 @@ def get_game_statistics():
 def join_game_with_payment():
     """Join game with entry fee payment"""
     try:
+        if not fs_db:
+            return jsonify({'error': 'Database service unavailable'}), 500
+
         data = request.get_json()
         game_id = data.get('gameId')
         user_id = data.get('userId')
@@ -776,7 +802,7 @@ def join_game_with_payment():
         game_ref = fs_db.collection('gameRooms').document(game_id)
         game_doc = game_ref.get()
         
-        if not game_doc.exists():
+        if not game_doc.exists:
             return jsonify({'error': 'Game not found'}), 404
             
         game_data = game_doc.to_dict()
@@ -787,7 +813,7 @@ def join_game_with_payment():
             wallet_ref = fs_db.collection('wallets').document(user_id)
             wallet_doc = wallet_ref.get()
             
-            if not wallet_doc.exists() or wallet_doc.to_dict().get('balance', 0) < entry_fee:
+            if not wallet_doc.exists or wallet_doc.to_dict().get('balance', 0) < entry_fee:
                 return jsonify({'error': 'Insufficient wallet balance'}), 400
             
             # Deduct entry fee from wallet

@@ -12,6 +12,14 @@ interface DepositModalProps {
   wallet: { balance: number };
 }
 
+interface Transaction {
+  id: string;
+  amount: number;
+  type: string;
+  status: string;
+  createdAt: any;
+}
+
 const DepositModal: React.FC<DepositModalProps> = ({ onClose, wallet }) => {
   const [amount, setAmount] = useState<string>('');
   const [loading, setLoading] = useState(false);
@@ -69,24 +77,16 @@ const DepositModal: React.FC<DepositModalProps> = ({ onClose, wallet }) => {
         return;
       }
   
-      const chapaPayload = {
+      const depositPayload = {
         amount: depositAmount,
-        currency: 'ETB',
         email,
         first_name,
         last_name,
         phone,
-        userId,
-        tx_ref: `deposit-${userId}-${Date.now()}`,
-        callback_url: `${import.meta.env.VITE_BACKEND_URL}/api/wallet/deposit/callback`,
-        return_url: `${import.meta.env.VITE_FRONTEND_URL}/wallet`,
-        customization: {
-          title: 'Deposit',
-          description: 'Deposit to wallet',
-        },
+        userId
       };
   
-      const res = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/api/create-payment`, chapaPayload);
+      const res = await axios.post('/api/wallet/deposit', depositPayload);
   
       if (res.data.checkout_url) {
         window.location.href = res.data.checkout_url;

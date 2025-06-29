@@ -29,6 +29,11 @@ const GameLobby: React.FC<GameLobbyProps> = ({ onShowGameList }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    if (!auth.currentUser?.uid) {
+      setLoading(false);
+      return;
+    }
+
     let unsubscribeGameRooms: (() => void) | null = null;
     
     const setupGameRoomsSubscription = () => {
@@ -57,10 +62,10 @@ const GameLobby: React.FC<GameLobbyProps> = ({ onShowGameList }) => {
         unsubscribeGameRooms();
       }
     };
-  }, []);
+  }, [auth.currentUser?.uid]);
 
   useEffect(() => {
-    if (!auth.currentUser) return;
+    if (!auth.currentUser?.uid) return;
 
     let unsubscribeWallet: (() => void) | null = null;
     
@@ -86,7 +91,7 @@ const GameLobby: React.FC<GameLobbyProps> = ({ onShowGameList }) => {
         unsubscribeWallet();
       }
     };
-  }, []);
+  }, [auth.currentUser?.uid]);
 
   useEffect(() => {
     setCurrentLanguage(languageService.getCurrentLanguage());

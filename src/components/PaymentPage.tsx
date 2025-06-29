@@ -49,7 +49,7 @@ const PaymentPage: React.FC = () => {
         createdAt: new Date()
       });
 
-      const response = await fetch('http://0.0.0.0:5000/create-chapa-payment', {
+      const response = await fetch('/api/create-payment', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
