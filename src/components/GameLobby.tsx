@@ -19,7 +19,7 @@ interface GameLobbyProps {
 
 // Admin UIDs - same as in App.tsx
 const ADMIN_UIDS = [
-  "YlXEWXPLKvMiWHdqRajvNzzpW883",
+  "fp68X8CKAYQDZYGGVt3ycVGztv23",
   // Add more admin UIDs here
 ];
 
