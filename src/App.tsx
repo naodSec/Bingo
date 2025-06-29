@@ -17,8 +17,11 @@ import { doc, getDoc } from "firebase/firestore";
 import { db } from "./firebase/config";
 import AdminPage from './components/AdminPage';
 
+// Admin UIDs - Add your user ID here to access admin panel
 const ADMIN_UIDS = [
-  "YlXEWXPLKvMiWHdqRajvNzzpW883"
+  "YlXEWXPLKvMiWHdqRajvNzzpW883", // Default admin
+  // Add your Firebase Auth UID here to become admin
+  // You can find your UID in the browser console after logging in
 ];
 
 function App() {
@@ -34,7 +37,11 @@ function App() {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user);
 
+      // Log user UID for admin access (remove in production)
       if (user) {
+        console.log('Your User UID (for admin access):', user.uid);
+        console.log('Add this UID to ADMIN_UIDS array in App.tsx to become admin');
+        
         // Check if user needs to see welcome page
         if (!localStorage.getItem('welcomeCompleted')) {
           setShowWelcome(true);

@@ -296,15 +296,22 @@ def withdraw():
         # Save withdrawal request to Firestore
         tx_ref = f"withdraw-{uuid.uuid4()}"
         print(f"Creating withdrawal transaction with tx_ref: {tx_ref}")  # Debug log
-        withdrawal_ref = fs_db.collection("withdrawals").document(tx_ref)
-        withdrawal_ref.set({
+        
+        # Create withdrawal transaction record
+        withdrawal_data = {
             "userId": user_id,
             "amount": amount,
             "phone": phone,
             "status": "pending",
             "tx_ref": tx_ref,
-            "createdAt": firestore.SERVER_TIMESTAMP
-        })
+            "type": "withdrawal",
+            "createdAt": firestore.SERVER_TIMESTAMP,
+            "description": f"Withdrawal to {phone}"
+        }
+        
+        # Save to both collections for compatibility
+        fs_db.collection("withdrawals").document(tx_ref).set(withdrawal_data)
+        fs_db.collection("transactions").document(tx_ref).set(withdrawal_data)
 
         print(f"Withdrawal request saved with tx_ref: {tx_ref}")  # Debug log
         return jsonify({"success": True, "message": "Withdrawal request submitted successfully."}), 200

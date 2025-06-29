@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Users, Trophy, Clock, DollarSign, LogOut, Wallet, Volume2, Settings, Wifi, WifiOff, Star, Crown, Zap, Target, Gamepad2, TrendingUp, Gift, Sparkles, Play, Siren as Fire, Activity } from 'lucide-react';
+import { Plus, Users, Trophy, Clock, DollarSign, LogOut, Wallet, Volume2, Settings, Wifi, WifiOff, Star, Crown, Zap, Target, Gamepad2, TrendingUp, Gift, Sparkles, Play, Siren as Fire, Activity, Shield } from 'lucide-react';
 import { auth } from '../firebase/config';
 import { signOut } from 'firebase/auth';
 import { gameService } from '../services/gameService';
@@ -17,6 +17,12 @@ interface GameLobbyProps {
   onShowGameList: () => void;
 }
 
+// Admin UIDs - same as in App.tsx
+const ADMIN_UIDS = [
+  "YlXEWXPLKvMiWHdqRajvNzzpW883",
+  // Add more admin UIDs here
+];
+
 const GameLobby: React.FC<GameLobbyProps> = ({ onShowGameList }) => {
   const [gameRooms, setGameRooms] = useState<GameRoom[]>([]);
   const [wallet, setWallet] = useState<WalletType | null>(null);
@@ -27,6 +33,9 @@ const GameLobby: React.FC<GameLobbyProps> = ({ onShowGameList }) => {
   const [currentLanguage, setCurrentLanguage] = useState(languageService.getCurrentLanguage());
   const [featuredGame, setFeaturedGame] = useState<GameRoom | null>(null);
   const navigate = useNavigate();
+
+  // Check if current user is admin
+  const isAdmin = auth.currentUser && ADMIN_UIDS.includes(auth.currentUser.uid);
 
   useEffect(() => {
     if (!auth.currentUser?.uid) {
@@ -290,6 +299,17 @@ const GameLobby: React.FC<GameLobbyProps> = ({ onShowGameList }) => {
                 <span>{playerLevel.level}</span>
               </div>
 
+              {/* Admin Panel Access */}
+              {isAdmin && (
+                <button
+                  onClick={() => navigate('/admin')}
+                  className="bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 text-white px-4 py-2 rounded-xl flex items-center space-x-2 transition-all transform hover:scale-105 shadow-lg font-bold"
+                >
+                  <Shield className="w-4 h-4" />
+                  <span>Admin</span>
+                </button>
+              )}
+
               {/* Voice Settings */}
               <button
                 onClick={() => setShowVoiceSettings(true)}
@@ -333,6 +353,19 @@ const GameLobby: React.FC<GameLobbyProps> = ({ onShowGameList }) => {
               </div>
               <p className="text-white/80 mt-2">
                 You're currently offline. The app will automatically reconnect when your connection is restored.
+              </p>
+            </div>
+          )}
+
+          {/* Admin Access Info */}
+          {isAdmin && (
+            <div className="bg-gradient-to-r from-red-500/20 to-pink-500/20 border border-red-500/30 rounded-2xl p-6 mb-8 backdrop-blur-sm">
+              <div className="flex items-center space-x-3 text-red-400">
+                <Shield className="w-6 h-6" />
+                <span className="font-bold text-lg">Admin Access Enabled</span>
+              </div>
+              <p className="text-white/80 mt-2">
+                You have admin privileges. Click the "Admin" button to access the admin panel.
               </p>
             </div>
           )}
