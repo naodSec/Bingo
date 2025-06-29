@@ -18,7 +18,7 @@ import { db } from "./firebase/config";
 import AdminPage from './components/AdminPage';
 
 const ADMIN_UIDS = [
-  "YlXEWXPLKvMiWHdqRajvNzzpW883"
+  "fp68X8CKAYQDZYGGVt3ycVGztv23"
 ];
 
 function App() {
