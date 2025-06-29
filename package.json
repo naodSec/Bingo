@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@firebase/firestore": "^4.7.17",
     "axios": "^1.10.0",
     "cors": "^2.8.5",
     "crypto": "^1.0.1",
