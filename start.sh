@@ -30,9 +30,20 @@ BACKEND_PID=$!
 # Wait a moment for backend to start
 sleep 3
 
-# Start frontend (stay in project root directory)
+# Start frontend from root directory (where package.json with dev script is located)
 npm run dev &
 FRONTEND_PID=$!
+
+# Function to cleanup background processes
+cleanup() {
+    echo "Stopping services..."
+    kill $BACKEND_PID 2>/dev/null
+    kill $FRONTEND_PID 2>/dev/null
+    exit
+}
+
+# Trap signals to cleanup processes
+trap cleanup SIGINT SIGTERM
 
 # Wait for both processes
 wait $BACKEND_PID $FRONTEND_PID
